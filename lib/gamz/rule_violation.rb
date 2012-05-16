@@ -4,10 +4,10 @@ module Gamz
 
     attr_reader :type
 
-  	def initialize(type, msg = nil)
+    def initialize(type, msg = nil)
       @type = type
       super(msg)
-  	end
+    end
 
     def to_s
       "#{@type}#{": "+message if message}"

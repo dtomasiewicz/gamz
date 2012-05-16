@@ -32,7 +32,7 @@ module Gamz
           return [msg['type']]+msg['data']
         end
 
-    	end
+      end
 
     end
   end

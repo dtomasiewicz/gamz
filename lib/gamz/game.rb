@@ -1,13 +1,13 @@
 module Gamz
 
-	class Game
+  class Game
 
     attr_accessor :players
 
-		def initialize(players)
-			@players = players
+    def initialize(players)
+      @players = players
       @informer = nil
-		end
+    end
 
     def on_inform(&block)
       @informer = block
@@ -36,6 +36,6 @@ module Gamz
       RuleViolation.new type, message
     end
 
-	end
+  end
 
 end
