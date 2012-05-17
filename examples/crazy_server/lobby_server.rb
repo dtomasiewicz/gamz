@@ -8,17 +8,16 @@ class LobbyServer
 
   def initialize(game_class, player_class)
     @game_class, @player_class = game_class, player_class
-    @server = Gamz::Net::Service.new
-    # allow client name to be set at any time
-    @server.handle :set_name, &method(:handle_set_name)
+
+    @service = Gamz::Net::Service.new self
+
     @names = {} # Client => client name
     @tables = {} # table name => Table
   end
 
   def start(control_port, notify_port)
-    @server.listen control_port, notify_port
-    @server.default_handler = self
-    @server.start
+    @service.listen control_port, notify_port
+    @service.start
   end
 
   def client_name(client)
@@ -29,26 +28,30 @@ class LobbyServer
 
   def handle_set_name(client, name)
     @names[client] = name.to_s
-    client.respond :success
+    return :success
   end
 
   def handle_create_table(client, name)
     name = name.to_s
     @tables[name] = table = Table.new(self, name, client)
-    client.handler = table
+    client.state_handler = table
 
-    @server.broadcast :table_created, table
-    client.respond :success
+    @service.broadcast :table_created, table
+    return :success
   end
 
   def handle_join_table(client, name)
     name = name.to_s
-    if table = @tables[name] && table.clients.length < @game_class::MAX_PLAYERS
-      table.clients << client
-      client.handler = table
-      client.respond :success
+    if table = @tables[name]
+      if !@game_class.max_players || table.clients.length < @game_class.max_players
+        table.clients << client
+        client.handler = table
+        return :success
+      else
+        return :table_full
+      end
     else
-      client.respond :error, 'invalid table'
+      return :invalid_table
     end
   end
 

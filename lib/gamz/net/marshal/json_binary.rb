@@ -21,14 +21,14 @@ module Gamz
         end
 
         def recv_message(sock)
-          len = sock.recv_nonblock(2).unpack('n')[0]
-          json = sock.recv_nonblock(len).force_encoding @json_encoding
+          len_packed = sock.recv_nonblock 2
+          raise SocketClosed if len_packed == ""
+          json = sock.recv_nonblock(len_packed.unpack('n')[0]).force_encoding @json_encoding
           msg = JSON.parse json
           # enforce invariants
-          raise "not a hash" unless msg.kind_of?(Hash)
-          raise "no String 'type' given" unless msg['type'].kind_of?(String)
+          raise MalformedMessage unless msg.kind_of?(Hash)
           msg['data'] ||= []
-          raise "data is not an array" unless msg['data'].kind_of?(Array)
+          raise MalformedMessage unless msg['type'].kind_of?(String) && msg['data'].kind_of?(Array)
           return [msg['type']]+msg['data']
         end
 

@@ -1,58 +1,33 @@
 #!/usr/bin/env ruby
-require 'socket'
 require 'gamz'
 require 'json'
 
 class CrazyEights
 
-  TICK = 1.0/2
-
   def initialize
-    @encoder = Gamz::Net::Marshal::JSONBase64.new
+    @client = Gamz::Net::Client.new
+    @client.on_input &method(:handle_input)
+    @client.on_notify &method(:handle_notify)
   end
 
   def start(control_port, notify_port)
-    @control = Socket.new :INET, :STREAM
-    @control.connect Addrinfo.tcp('127.0.0.1', control_port)
+    @client.connect control_port, notify_port
+    @client.start
+    @client.disconnect
+  end
 
-    @notify = Socket.new :INET, :STREAM
-    @notify.connect Addrinfo.tcp('127.0.0.1', notify_port)
+  private
 
-    read_socks = [@control, @notify, STDIN]
-    puts "> "
-
-    shutdown = false
-    until shutdown
-      if sel = IO.select(read_socks, [], [], 0)
-        sel[0].each do |readable|
-          case readable
-          when @control
-            type, data = @encoder.recv_message @control
-            puts "CONTROL: #{type} => #{data}"
-            case type
-            when :close
-              shutdown = true
-            end
-          when @notify
-            type, data = @encoder.recv_message @notify
-            puts "NOTIFY: #{type} => #{data}"
-            case type
-            when :claim_key
-              # TODO
-            end
-          when STDIN
-            type, data = STDIN.gets.chomp.split ' ', 2
-            data ||= "[]"
-            @encoder.send_message @control, type, *JSON.parse(data)
-          end
-        end
-        puts "> "
-      end
-      sleep TICK
+  def handle_input(input)
+    action, data = input.chomp.split ' ', 2
+    data ||= "[]"
+    @client.act action, *JSON.parse(data) do |res, *details|
+      puts "RES (#{action}) #{res} => #{JSON.dump details}"
     end
+  end
 
-    @control.close
-    @notify.close
+  def handle_notify(type, *details)
+    puts "NOTIFY #{type} => #{JSON.dump details}"
   end
 
 end

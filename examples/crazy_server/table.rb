@@ -15,7 +15,7 @@ class Table
 
   def handle_start_game(client)
     if @owner == client
-      if @clients.length >= @lobby.game_class::MIN_PLAYERS
+      if @clients.length >= @lobby.game_class.min_players
         # create players
         players = []
         player_clients = {}
@@ -37,12 +37,12 @@ class Table
           @clients[i].handler = GameHandler.new game, players[i]
         end
 
-        client.respond :success
+        return :success
       else
-        client.respond :not_enough_players
+        return :not_enough_players
       end
     else
-      client.respond :invalid_action
+      return :invalid_action
     end
   end
 

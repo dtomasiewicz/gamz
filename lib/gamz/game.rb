@@ -2,6 +2,9 @@ module Gamz
 
   class Game
 
+    MIN_PLAYERS = 1
+    MAX_PLAYERS = nil
+
     attr_accessor :players
 
     def initialize(players)
@@ -28,6 +31,14 @@ module Gamz
     def inform_except(players, *args)
       players = [players] unless players.kind_of?(Array)
       inform @players-players, *args
+    end
+
+    def self.min_players
+      self.class::MIN_PLAYERS
+    end
+
+    def self.max_players
+      self.class::MAX_PLAYERS
     end
 
     protected

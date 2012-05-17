@@ -22,13 +22,13 @@ module Gamz
 
         def recv_message(sock)
           b64 = sock.recvmsg_nonblock[0]
+          raise SocketClosed if b64 == ""
           json = Base64.decode64(b64).force_encoding @json_encoding
           msg = JSON.parse json
           # enforce invariants
-          raise "not a hash" unless msg.kind_of?(Hash)
-          raise "no String 'type' given" unless msg['type'].kind_of?(String)
+          raise MalformedMessage unless msg.kind_of?(Hash)
           msg['data'] ||= []
-          raise "data is not an array" unless msg['data'].kind_of?(Array)
+          raise MalformedMessage unless msg['type'].kind_of?(String) && msg['data'].kind_of?(Array)
           return [msg['type']]+msg['data']
         end
 

@@ -24,16 +24,11 @@ class CrazyEights < Gamz::Game
   MAX_PLAYERS = 4
   HAND_SIZE = 8
 
-  def initialize(players)
-    super
+  def start
     @turn = 0
     @deck = Gamz::Support::StandardDeck.new
     @dicard = []
-    @current_suit = nil
-    @waiting_for_suit = false
-  end
 
-  def start
     @deck.shuffle!
 
     # deal
@@ -46,11 +41,11 @@ class CrazyEights < Gamz::Game
     end
     up = @deck.pop
     @discard << up
-    inform_all :upcard, up
+    inform_all :up_card, up
 
     # if 8 is up, dealer may declare the initial suit
     if up.rank == 8
-      @waiting_for_suit = true
+      @current_suit = nil
     else
       set_current_suit up.suit
       advance_turn
@@ -60,37 +55,36 @@ class CrazyEights < Gamz::Game
   # The following actions may be performed only when it is a player's
   # turn.
 
-  def declare_suit(suit)
+  def declare_suit(player, suit)
     raise rv :not_your_turn unless current_player == player
-    raise rv :invalid_action unless @waiting_for_suit
+    raise rv :invalid_action if @current_suit
     raise rv :invalid_suit unless ['S', 'H', 'C', 'D'].include?(suit)
 
     set_current_suit suit
-    @waiting_for_suit = false
     advance_turn
   end
 
   def pass(player)
     raise rv :not_your_turn unless current_player == player
-    raise rv :invalid_action if @waiting_for_suit
+    raise rv :invalid_action unless @current_suit
     raise rv :have_playable_card if has_playable_card?(player)
 
     inform_all :pass, player
     advance_turn
   end
 
-  def play_card(player, index, change_suit = nil)
+  def play_card(player, index)
     raise rv :not_your_turn unless current_player == player
-    raise rv :invalid_action if @waiting_for_suit
+    raise rv :invalid_action unless @current_suit
     raise rv :invalid_card unless player.hand[index]
     raise rv :card_not_playable unless card_playable?(card)
 
-    card = @player.delete_at(index)
+    card = @player.delete_at index
     @discard << card
     inform_all :card_played, player, card
 
     if card.rank == 8
-      @waiting_for_suit = true
+      @current_suit = nil
     else
       if card.suit != @current_suit
         set_current_suit card.suit
@@ -100,9 +94,10 @@ class CrazyEights < Gamz::Game
   end
 
   def draw_card(player)
-    raise :not_your_turn unless current_player == player
-    raise :invalid_action if @waiting_for_suit
-    raise :have_playable_card if has_playable_card?(player)
+    raise rv :not_your_turn unless current_player == player
+    raise rv :invalid_action unless @current_suit
+    raise rv :have_playable_card if has_playable_card?(player)
+    raise rv :deck_empty if @deck.empty?
 
     card = @deck.pop
     @player.hand << card

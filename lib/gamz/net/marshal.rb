@@ -15,6 +15,13 @@ module Gamz
       #       message type as a String, and the rest of which are data elements
       #       of any type
 
+
+      class MalformedMessage < StandardError
+      end
+
+      class SocketClosed < IOError
+      end
+
     end
 
   end

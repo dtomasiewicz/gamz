@@ -1,4 +1,3 @@
-require 'set'
 require 'socket'
 
 module Gamz
@@ -6,154 +5,56 @@ module Gamz
 
     class Service
 
-      DEFAULT_TICK_RATE = 60
+      attr_accessor :base_handler, :encoder, :suppress_handler_errors
 
-      attr_accessor :default_handler, :tick_rate, :encoder, :suppress_handler_errors
-
-      def initialize(encoder = Net::Marshal::JSONBase64.new)
+      def initialize(base_handler = nil, encoder = Net::Marshal::JSONBinary.new)
+        @base_handler = base_handler
         @encoder = encoder
 
-        @suppress_handler_errors = true
-        @clients = {} # control_sock => Client
-        @selectable = []
-
-        @control_srv = Socket.new :INET, :STREAM
-        @control_srv.setsockopt Socket::SOL_SOCKET, Socket::SO_REUSEADDR, true
-        @notify_srv = Socket.new :INET, :STREAM
-        @notify_srv.setsockopt Socket::SOL_SOCKET, Socket::SO_REUSEADDR, true
-
-        @notify_anon = {} # claim_key => [sock, addr]
-        @running = false
-
-        @tick_rate = DEFAULT_TICK_RATE
-        @timer = []
-        @schedule = []
-
         @global_handlers = {}
-        @default_handler = nil
-        handle :claim_notify, &method(:claim_notify)
+
+        @demux = Demux.new
+        # default read handler assumes a client control socket
+        @demux.read &method(:read_client)
+
+        @clients = {} # control_sock => ServiceClient
+        @suppress_handler_errors = true
+
+        @control_l = @notify_l = nil
+        @notify_anon = {} # claim_key => [sock, addr]
+
+        # handler invoked when a client disconnects
+        @dc_handler = nil
+
+        on_action :claim_notify, &method(:claim_notify)
       end
 
-      # schedule execution of the passed block to occur in at least <seconds>
-      # - the actual time elapsed before execution scales with load (more
-      #   load = more skew)
-      # - implemented backwards to allow use of pop instead of shift in #start
-
-      def in(seconds, &block)
-        ticks = (seconds*@tick_rate).round
-        if @timer.empty?
-          @timer << [ticks, block]
-        else
-          # insert somewhere other than the end
-          i = @timer.length-1
-          while i >= 0 && @timer[i][0] <= ticks
-            ticks -= @timer[i][0]
-            i -= 1
-          end
-          # adjust predecessor
-          @timer[i][0] -= ticks if i >= 0
-          @timer.insert i+1, [ticks, block]
-        end
-      end
-
-      # schedule execution of the passed block at the given <time> (or as soon
-      # afterwards as possible)
-      # - the actual time elapsed before execution does NOT scale with load
-      # - implemented backwards to allow use of pop instead of shift in #start
-
-      def at(time, &block)
-        if @schedule.empty?
-          @schedule << [time, block]
-        else
-          i = @schedule.length-1
-          i -= 1 while i >= 0 && @schedule[i][0] <= time
-          @schedule.insert i+1, [time, block]
-        end
-      end
-
-      def handle(action = nil, &block)
+      def on_action(action = nil, &block)
         action = action.to_s if action # allow symbols
-        if block
-          @global_handlers[action] = block
-        else
-          @global_handlers.delete action
-        end
+        @global_handlers[action] = block
+      end
+
+      def on_disconnect(&block)
+        @dc_handler = block
       end
 
       def listen(control_port, notify_port, backlog = 10)
-        raise "server is already running" if @running
-        @control_srv.bind Addrinfo.tcp("127.0.0.1", control_port)
-        @control_srv.listen backlog
-        @notify_srv.bind Addrinfo.tcp("127.0.0.1", notify_port)
-        @notify_srv.listen backlog
-        @selectable << @control_srv << @notify_srv
+        @control_l = open_listener control_port, backlog, method(:read_control)
+        @notify_l = open_listener notify_port, backlog, method(:read_notify)
+
         self
       end
 
-      # if <timeout> is given without a bock, server will run for at least that many
-      # seconds before this method returns.
-      #
-      # if <timeout> is given along with a block, the server will run for at least
-      # <timeout> seconds, then execute the block and run for <timeout> seconds again 
-      # if the block returns a true value, repeating until the block returns a false
-      # value
-      #
-      # if no timeout is given, the server will run until interrupted
+      def stop_listen
+        @notify_l = close_listener @notify_l
+        @control_l = close_listener @control_l
+
+        self
+      end
 
       def start(timeout = nil, &block)
-        raise "server is already running" if @running
-        step_timeout = 1.0/@tick_rate
-        ticks = timeout ? (timeout*@tick_rate).round : nil
+        @demux.start timeout, &block
 
-        each_tick = Proc.new do
-          start = Time.now
-          step step_timeout
-          @schedule.pop[1].call until @schedule.empty? || @schedule.last[0] > Time.now
-          @timer.last[0] -= 1 unless @timer.empty?
-          @timer.pop[1].call until @timer.empty? || @timer.last[0] > 0
-        end
-
-        @running = true
-        if timeout
-          while @running
-            (timeout*@tick_rate).round.times &each_tick
-            @running = block_given? ? yield : false
-          end
-        else
-          loop &each_tick
-        end
-        @running = false
-        self
-      end
-
-      def step(timeout = nil)
-        if sel = IO.select(@selectable, [], [], timeout)
-          sel[0].each do |readable|
-            case readable
-            when @control_srv
-              client = Client.new self, *@control_srv.accept_nonblock
-              @clients[client.control_sock] = client
-              @selectable << client.control_sock
-            when @notify_srv
-              sock, addr = @notify_srv.accept_nonblock
-              claim_key = (0...40).map{(65 + rand(25)).chr}.join
-              @notify_anon[claim_key] = [sock, addr]
-              begin
-                @encoder.send_message sock, :claim_key, claim_key
-              rescue => e
-                puts "ERROR: Failed to send claim key (#{e.inspect})"
-              end
-            else
-              client = @clients[readable]
-              begin
-                dispatch client, *@encoder.recv_message(readable)
-              rescue => e
-                puts "[#{client.object_id}] MALFORMED: #{e.inspect}"
-                client.respond :error, 'malformed message'
-              end
-            end
-          end
-        end
         self
       end
 
@@ -164,38 +65,122 @@ module Gamz
 
       def notify_all(type, *data)
         @clients.values.each {|c| c.notify type, *data}
+
+        self
       end
       alias_method :broadcast, :notify_all
 
       private
 
-      def dispatch(client, action, *data)
+      def open_listener(port, backlog, handler)
+        sock = Socket.new :INET, :STREAM
+        sock.setsockopt Socket::SOL_SOCKET, Socket::SO_REUSEADDR, true
+        sock.bind Addrinfo.tcp("127.0.0.1", port)
+        sock.listen backlog
+        @demux.read sock, &handler
+
+        sock
+      end
+
+      def close_listener(sock)
+        @demux.stop_read sock
+        sock.close
+
+        nil
+      end
+
+      def read_control
+        client = ServiceClient.new self, *@control_l.accept_nonblock
+        @clients[client.control_sock] = client
+        @demux.read client.control_sock
+      end
+
+      def read_notify
+        sock = @notify_l.accept_nonblock[0]
+        @notify_anon[claim_key = gen_claim_key] = sock
         begin
-          puts "[#{client.object_id}] #{action} => #{data}"
-          handler = client.handler || @default_handler
-          if handler && handler.respond_to?(m = :"handle_#{action}", true)
-            handler.send m, client, *data
-          elsif h = @global_handlers[action]
-            h.call client, *data
-          elsif h = @global_handlers[nil]
-            h.call client, action, *data
-          else
-            client.respond :invalid_action
-          end
+          @encoder.send_message sock, :claim_key, claim_key
+        rescue => e
+          puts "ERROR: Failed to send claim key (#{e.inspect})"
+        end
+      end
+
+      def read_client(sock)
+        client = @clients[sock]
+
+        begin
+          action, *data = @encoder.recv_message sock
+        rescue Marshal::SocketClosed
+          disconnect client
+          return
+        rescue => e
+          print_error e
+          return
+        end
+
+        puts "[#{client.object_id}] ACT #{action} => #{data}"
+
+        begin
+          res = dispatch client, action, data
+          res = [res] unless res.kind_of?(Array)
         rescue => e
           raise e unless @suppress_handler_errors
-          puts "  HANDLER: #{e.inspect}"
+          print_error e
+          res = [:handler_error]
         end
+        
+        puts "[#{client.object_id}] RES #{res.first} => #{res[1..-1]}"
+
+        begin
+          @encoder.send_message client.control_sock, *res
+        rescue => e
+          print_error e
+        end
+      end
+
+      def gen_claim_key
+        # TODO improve this
+        claim_key = (0...40).map{(65 + rand(25)).chr}.join
+      end
+
+      def dispatch(client, action, data)
+        method = :"handle_#{action}"
+        if client.state_handler && client.state_handler.respond_to?(method, true)
+          return client.state_handler.send method, client, *data
+        elsif @base_handler && @base_handler.respond_to?(method, true)
+          return @base_handler.send method, client, *data
+        elsif @global_handlers[action]
+          return @global_handlers[action].call client, *data
+        elsif @global_handlers[nil]
+          return @global_handlers[nil].call client, *data
+        else
+          return [:invalid_action]
+        end
+      end
+
+      def print_error(error)
+        puts "  #{error.inspect}"
+        puts "  #{error.backtrace.first}"
       end
 
       def claim_notify(client, key)
         if @notify_anon.has_key?(key)
           client.notify_sock.close if client.notify_sock
-          client.notify_sock = @notify_anon.delete(key)[0]
-          client.respond :success
+          client.notify_sock = @notify_anon.delete key
+          return :success
         else
-          client.respond :invalid_claim_key
+          return :invalid_claim_key
         end
+      end
+
+      def disconnect(client)
+        @demux.stop_read client.control_sock
+        @clients.delete client.control_sock
+        client.control_sock.close
+        client.notify_sock.close
+        client.control_sock = client.notify_sock = nil
+        puts "[#{client.object_id}] DIS"
+        @dc_handler.call client if @dc_handler
       end
 
     end
