@@ -1,8 +1,9 @@
 require 'gamz'
 require_relative 'table'
-require_relative 'game_handler'
 
 class LobbyServer
+
+  include Gamz::Net::Reactor
 
   attr_reader :game_class, :player_class
 
@@ -26,26 +27,33 @@ class LobbyServer
 
   private
 
-  def handle_set_name(client, name)
-    @names[client] = name.to_s
-    return :success
+  def react_set_name(client, name)
+    name = name.to_s
+    if @names.has_value?(name)
+      return :name_taken
+    else
+      @names[client] = name
+      return :success
+    end
   end
 
-  def handle_create_table(client, name)
+  def react_create_table(client, name)
     name = name.to_s
+    return :table_exists if @tables[name]
+
     @tables[name] = table = Table.new(self, name, client)
-    client.state_handler = table
+    client.reactor = table
 
     @service.broadcast :table_created, table
     return :success
   end
 
-  def handle_join_table(client, name)
+  def react_join_table(client, name)
     name = name.to_s
     if table = @tables[name]
       if !@game_class.max_players || table.clients.length < @game_class.max_players
         table.clients << client
-        client.handler = table
+        client.reactor = table
         return :success
       else
         return :table_full

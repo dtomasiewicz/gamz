@@ -3,11 +3,11 @@ module Gamz
 
     class ServiceClient
 
-      attr_accessor :control_sock, :address, :notify_sock, :state_handler
+      attr_accessor :control_sock, :address, :notify_sock, :reactor
 
       def initialize(server, control_sock, address)
         @server, @control_sock, @address = server, control_sock, address
-        @state_handler = nil
+        @reactor = nil
       end
 
       def notify(*args)

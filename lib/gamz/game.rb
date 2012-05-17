@@ -34,11 +34,11 @@ module Gamz
     end
 
     def self.min_players
-      self.class::MIN_PLAYERS
+      self::MIN_PLAYERS
     end
 
     def self.max_players
-      self.class::MAX_PLAYERS
+      self::MAX_PLAYERS
     end
 
     protected

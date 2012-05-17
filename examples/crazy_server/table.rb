@@ -1,4 +1,8 @@
+require_relative 'game_reactor'
+
 class Table
+
+  include Gamz::Net::Reactor
 
   attr_accessor :name, :owner, :clients
 
@@ -13,7 +17,7 @@ class Table
 
   private
 
-  def handle_start_game(client)
+  def react_start_game(client)
     if @owner == client
       if @clients.length >= @lobby.game_class.min_players
         # create players
@@ -31,11 +35,11 @@ class Table
         game.on_inform do |player, what, *details|
           player_clients[player].notify what, *details
         end
+        game.setup
 
-        # set player handlers
-        (1...@clients.length).each do |i|
-          @clients[i].handler = GameHandler.new game, players[i]
-        end
+        # set player reactors
+        reactor = GameReactor.new game, player_clients.invert
+        @clients.each {|c| c.reactor = reactor}
 
         return :success
       else

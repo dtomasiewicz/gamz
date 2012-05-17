@@ -7,7 +7,7 @@ class Player
 
   attr_accessor :name, :hand
 
-  def initialize(client, name)
+  def initialize(name)
     @name = name
     @hand = []
   end
@@ -24,12 +24,14 @@ class CrazyEights < Gamz::Game
   MAX_PLAYERS = 4
   HAND_SIZE = 8
 
-  def start
+  def setup
     @turn = 0
     @deck = Gamz::Support::StandardDeck.new
-    @dicard = []
+    @discard = []
 
     @deck.shuffle!
+
+    inform_all :players, players
 
     # deal
     players.each do |player|
@@ -55,7 +57,7 @@ class CrazyEights < Gamz::Game
   # The following actions may be performed only when it is a player's
   # turn.
 
-  def declare_suit(player, suit)
+  def do_declare_suit(player, suit)
     raise rv :not_your_turn unless current_player == player
     raise rv :invalid_action if @current_suit
     raise rv :invalid_suit unless ['S', 'H', 'C', 'D'].include?(suit)
@@ -64,7 +66,7 @@ class CrazyEights < Gamz::Game
     advance_turn
   end
 
-  def pass(player)
+  def do_pass(player)
     raise rv :not_your_turn unless current_player == player
     raise rv :invalid_action unless @current_suit
     raise rv :have_playable_card if has_playable_card?(player)
@@ -73,14 +75,14 @@ class CrazyEights < Gamz::Game
     advance_turn
   end
 
-  def play_card(player, index)
+  def do_play_card(player, index)
+    index = index.to_i
     raise rv :not_your_turn unless current_player == player
     raise rv :invalid_action unless @current_suit
-    raise rv :invalid_card unless player.hand[index]
+    raise rv :invalid_card unless card = player.hand[index]
     raise rv :card_not_playable unless card_playable?(card)
 
-    card = @player.delete_at index
-    @discard << card
+    @discard << player.hand.delete_at(index)
     inform_all :card_played, player, card
 
     if card.rank == 8
@@ -93,7 +95,7 @@ class CrazyEights < Gamz::Game
     end
   end
 
-  def draw_card(player)
+  def do_draw_card(player)
     raise rv :not_your_turn unless current_player == player
     raise rv :invalid_action unless @current_suit
     raise rv :have_playable_card if has_playable_card?(player)

@@ -5,25 +5,25 @@ module Gamz
 
     class Service
 
-      attr_accessor :base_handler, :encoder, :suppress_handler_errors
+      attr_accessor :default_reactor, :encoder, :suppress_reactor_errors
 
-      def initialize(base_handler = nil, encoder = Net::Marshal::JSONBinary.new)
-        @base_handler = base_handler
+      def initialize(default_reactor = nil, encoder = Net::Marshal::JSONBinary.new)
+        @default_reactor = default_reactor
         @encoder = encoder
 
-        @global_handlers = {}
+        @global_reactors = {}
 
         @demux = Demux.new
         # default read handler assumes a client control socket
         @demux.read &method(:read_client)
 
         @clients = {} # control_sock => ServiceClient
-        @suppress_handler_errors = true
+        @suppress_reactor_errors = true
 
         @control_l = @notify_l = nil
         @notify_anon = {} # claim_key => [sock, addr]
 
-        # handler invoked when a client disconnects
+        # invoked when a client disconnects
         @dc_handler = nil
 
         on_action :claim_notify, &method(:claim_notify)
@@ -31,7 +31,7 @@ module Gamz
 
       def on_action(action = nil, &block)
         action = action.to_s if action # allow symbols
-        @global_handlers[action] = block
+        @global_reactors[action] = block
       end
 
       def on_disconnect(&block)
@@ -124,9 +124,9 @@ module Gamz
           res = dispatch client, action, data
           res = [res] unless res.kind_of?(Array)
         rescue => e
-          raise e unless @suppress_handler_errors
+          raise e unless @suppress_reactor_errors
           print_error e
-          res = [:handler_error]
+          res = [:reactor_error]
         end
         
         puts "[#{client.object_id}] RES #{res.first} => #{res[1..-1]}"
@@ -144,15 +144,12 @@ module Gamz
       end
 
       def dispatch(client, action, data)
-        method = :"handle_#{action}"
-        if client.state_handler && client.state_handler.respond_to?(method, true)
-          return client.state_handler.send method, client, *data
-        elsif @base_handler && @base_handler.respond_to?(method, true)
-          return @base_handler.send method, client, *data
-        elsif @global_handlers[action]
-          return @global_handlers[action].call client, *data
-        elsif @global_handlers[nil]
-          return @global_handlers[nil].call client, *data
+        if r = @global_reactors[action]
+          return r.call client, *data
+        elsif client.reactor
+          return client.reactor.react client, action, *data
+        elsif @default_reactor
+          return @default_reactor.react client, action, *data
         else
           return [:invalid_action]
         end
