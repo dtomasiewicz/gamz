@@ -60,7 +60,7 @@ class CrazyEights < Gamz::Game
   def do_declare_suit(player, suit)
     raise rv :not_your_turn unless current_player == player
     raise rv :invalid_action if @current_suit
-    raise rv :invalid_suit unless ['S', 'H', 'C', 'D'].include?(suit)
+    raise rv :invalid_suit unless %w(S H C D).include?(suit)
 
     set_current_suit suit
     advance_turn
@@ -102,10 +102,20 @@ class CrazyEights < Gamz::Game
     raise rv :deck_empty if @deck.empty?
 
     card = @deck.pop
-    @player.hand << card
+    player.hand << card
     inform_except player, :card_drawn, {player: player}
     inform player, :card_drawn, {card: card}
   end
+
+  # BEGIN QUERY METHODS
+  # These methods are not necessary, but they simplify playability with
+  # simple clients that don't remember these things.
+
+  def do_hand(player)
+    inform player, :hand, player.hand
+  end
+
+  # END QUERY METHODS
 
   private
 
