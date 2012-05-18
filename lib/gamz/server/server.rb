@@ -15,7 +15,7 @@ module Gamz
         # default read handler assumes a client control socket
         @demux.read &method(:read_client)
 
-        @clients = {} # control_sock => ServiceClient
+        @clients = {} # control_sock => ServerClient
         @suppress_reactor_errors = true
 
         @control_l = @notify_l = nil

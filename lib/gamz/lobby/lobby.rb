@@ -10,15 +10,15 @@ module Gamz
       def initialize(game_class, player_class)
         @game_class, @player_class = game_class, player_class
 
-        @service = Gamz::Server::Server.new self
+        @server = Gamz::Server::Server.new self
 
         @names = {} # Client => client name
         @tables = {} # table name => Table
       end
 
       def start(control_port, notify_port)
-        @service.listen control_port, notify_port
-        @service.start
+        @server.listen control_port, notify_port
+        @server.start
       end
 
       def client_name(client)
@@ -27,17 +27,17 @@ module Gamz
 
       def destroy_table(name)
         if table = @tables.delete(name)
-          @service.broadcast :table_destroyed, table
+          @server.broadcast :table_destroyed, table
         end
       end
 
       def on_connect(client)
-        @service.broadcast :client_connect, client_name(client)
+        @server.broadcast :client_connect, client_name(client)
       end
 
       def on_disconnect(client)
         @names.delete client
-        @service.broadcast :client_disconnect, client_name(client)
+        @server.broadcast :client_disconnect, client_name(client)
       end
 
       private
@@ -59,7 +59,7 @@ module Gamz
         @tables[name] = table = Table.new(self, name, client)
         client.reactor = table
 
-        @service.broadcast :table_created, table
+        @server.broadcast :table_created, table
         return :success
       end
 
