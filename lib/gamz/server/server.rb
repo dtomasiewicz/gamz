@@ -1,19 +1,17 @@
 require 'socket'
 
 module Gamz
-  module Net
+  module Server
 
-    class Service
+    class Server
 
       attr_accessor :default_reactor, :encoder, :suppress_reactor_errors
 
-      def initialize(default_reactor = nil, encoder = Net::Marshal::JSONBinary.new)
+      def initialize(default_reactor = nil, encoder = Gamz::Marshal::JSONBinary.new)
         @default_reactor = default_reactor
         @encoder = encoder
 
-        @global_reactors = {}
-
-        @demux = Demux.new
+        @demux = Gamz::Demux.new
         # default read handler assumes a client control socket
         @demux.read &method(:read_client)
 
@@ -23,20 +21,28 @@ module Gamz
         @control_l = @notify_l = nil
         @notify_anon = {} # claim_key => [sock, addr]
 
-        # invoked when a client disconnects
-        @dc_handler = nil
+        # these reactors take precedence over client/default reactors
+        @global_actions = {}
+        @global_connect = @global_disconnect = nil
 
-        on_action :claim_notify, &method(:claim_notify)
+        global_action :claim_notify, &method(:claim_notify)
       end
 
-      def on_action(action = nil, &block)
+      def global_connect(&block)
+        @global_connect = bock
+      end
+      alias_method :on_connect, :global_connect
+
+      def global_action(action = nil, &block)
         action = action.to_s if action # allow symbols
-        @global_reactors[action] = block
+        @global_actions[action] = block
       end
+      alias_method :on_action, :global_action
 
-      def on_disconnect(&block)
-        @dc_handler = block
+      def global_disconnect(&block)
+        @global_disconnect = block
       end
+      alias_method :on_disconnect, :global_disconnect
 
       def listen(control_port, notify_port, backlog = 10)
         @control_l = open_listener control_port, backlog, method(:read_control)
@@ -90,9 +96,16 @@ module Gamz
       end
 
       def read_control
-        client = ServiceClient.new self, *@control_l.accept_nonblock
+        client = Client.new self, *@control_l.accept_nonblock
         @clients[client.control_sock] = client
         @demux.read client.control_sock
+
+        # call connect handler
+        if @global_connect
+          @global_connect.call client
+        elsif reactor = reactor_for(client)
+          reactor.on_connect client if reactor.respond_to?(:on_connect)
+        end
       end
 
       def read_notify
@@ -110,7 +123,7 @@ module Gamz
 
         begin
           action, *data = @encoder.recv_message sock
-        rescue Marshal::SocketClosed
+        rescue Gamz::Marshal::SocketClosed
           disconnect client
           return
         rescue => e
@@ -144,14 +157,12 @@ module Gamz
       end
 
       def dispatch(client, action, data)
-        if r = @global_reactors[action]
+        if r = @global_actions[action]
           return r.call client, *data
-        elsif client.reactor
-          return client.reactor.react client, action, *data
-        elsif @default_reactor
-          return @default_reactor.react client, action, *data
+        elsif reactor = reactor_for(client)
+          return reactor.on_action client, action, *data
         else
-          return [:invalid_action]
+          return :invalid_action
         end
       end
 
@@ -177,7 +188,17 @@ module Gamz
         client.notify_sock.close
         client.control_sock = client.notify_sock = nil
         puts "[#{client.object_id}] DIS"
-        @dc_handler.call client if @dc_handler
+
+        # call disconnect handler
+        if @global_disconnect
+          @global_disconnect.call client
+        elsif reactor = reactor_for(client)
+          reactor.on_disconnect client if reactor.respond_to?(:on_disconnect)
+        end
+      end
+
+      def reactor_for(client)
+        client.reactor || @default_reactor
       end
 
     end

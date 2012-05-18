@@ -1,9 +1,9 @@
 module Gamz
-  module Net
+  module Server
 
     module Reactor
 
-      def react(client, action, *data)
+      def on_action(client, action, *data)
         if respond_to?(m = :"react_#{action}", true)
           return send m, client, *data
         else

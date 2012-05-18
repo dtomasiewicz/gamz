@@ -1,13 +1,15 @@
-module Gamz
-	module Net
+require 'socket'
 
-		class Client
+module Gamz
+  module Client
+
+  	class Client
 
       attr_accessor :encoder
 
-      def initialize(encoder = Net::Marshal::JSONBinary.new)
+      def initialize(encoder = Gamz::Marshal::JSONBinary.new)
         @encoder = encoder
-        @demux = Demux.new
+        @demux = Gamz::Demux.new
         @control = @notify = nil
         @response_handlers = []
         @notify_handlers = {}
@@ -19,10 +21,14 @@ module Gamz
       def on_notify(type = nil, &block)
         type = type.to_s if type # allow symbols
         @notify_handlers[type] = block
+
+        self
       end
 
       def on_input(&block)
         @input_handler = block
+
+        self
       end
 
       def connect(control_port, notify_port)
@@ -103,7 +109,7 @@ module Gamz
         @input_handler.call input if @input_handler
       end
 
-		end
+    end
 
   end
 end

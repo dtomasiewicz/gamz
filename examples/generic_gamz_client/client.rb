@@ -1,11 +1,11 @@
 #!/usr/bin/env ruby
-require 'gamz'
+require 'gamz/client'
 require 'json'
 
-class CrazyEights
+Class.new do
 
   def initialize
-    @client = Gamz::Net::Client.new
+    @client = Gamz::Client.new
     @client.on_input &method(:handle_input)
     @client.on_notify &method(:handle_notify)
   end
@@ -30,6 +30,4 @@ class CrazyEights
     puts "NOTIFY #{type} => #{JSON.dump details}"
   end
 
-end
-
-CrazyEights.new.start (ARGV[0] || 10000).to_i, (ARGV[1] || 10001).to_i
+end.new.start (ARGV[0] || 10000).to_i, (ARGV[1] || 10001).to_i

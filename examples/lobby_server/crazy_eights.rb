@@ -1,7 +1,7 @@
 #!/usr/bin/env ruby
 
-require 'gamz'
-require_relative 'lobby_server'
+require 'gamz/lobby'
+require 'gamz/support'
 
 class Player
 
@@ -18,7 +18,7 @@ class Player
 
 end
 
-class CrazyEights < Gamz::Game
+class CrazyEights < Gamz::Lobby::Game
 
   MIN_PLAYERS = 2
   MAX_PLAYERS = 4
@@ -38,8 +38,8 @@ class CrazyEights < Gamz::Game
       HAND_SIZE.times do
         player.hand << @deck.pop
       end
-      inform_except player, :hand_dealt, {player: player, size: player.hand.size}
-      inform player, :hand_dealt, {hand: player.hand}
+      inform_others :hand_dealt, player, player.hand.size
+      inform player, :hand, player.hand
     end
     up = @deck.pop
     @discard << up
@@ -54,36 +54,60 @@ class CrazyEights < Gamz::Game
     end
   end
 
+  def player_left(player)
+    @pos = players.index player
+    @dc_current = player == current_player
+
+    super
+
+    if players.length >= MIN_PLAYERS
+      # resolve suit declaration (use suit of up-card)
+      set_current_suit up_card.suit unless @current_suit
+
+      # resolve turn (advance iff current player disconnected)
+      @turn -= 1 if @pos < @turn
+      @turn %= players.length
+      inform_turn if @dc_current
+    else
+      inform_all :not_enough_players
+      finished
+    end
+  end
+
   # The following actions may be performed only when it is a player's
   # turn.
 
   def do_declare_suit(player, suit)
-    raise rv :not_your_turn unless current_player == player
-    raise rv :invalid_action if @current_suit
-    raise rv :invalid_suit unless %w(S H C D).include?(suit)
+    return :not_your_turn unless current_player == player
+    return :invalid_action if @current_suit
+    return :invalid_suit unless %w(S H C D).include?(suit)
 
     set_current_suit suit
     advance_turn
+
+    return :success
   end
 
   def do_pass(player)
-    raise rv :not_your_turn unless current_player == player
-    raise rv :invalid_action unless @current_suit
-    raise rv :have_playable_card if has_playable_card?(player)
+    return :not_your_turn unless current_player == player
+    return :invalid_action unless @current_suit
+    return :have_playable_card if has_playable_card?(player)
 
-    inform_all :pass, player
+    inform_others :pass, player
     advance_turn
+
+    return :success
   end
 
   def do_play_card(player, index)
     index = index.to_i
-    raise rv :not_your_turn unless current_player == player
-    raise rv :invalid_action unless @current_suit
-    raise rv :invalid_card unless card = player.hand[index]
-    raise rv :card_not_playable unless card_playable?(card)
+    return :not_your_turn unless current_player == player
+    return :invalid_action unless @current_suit
+    return :invalid_card unless card = player.hand[index]
+    return :card_not_playable unless card_playable?(card)
 
     @discard << player.hand.delete_at(index)
-    inform_all :card_played, player, card
+    inform_others :card_played, player, card
 
     if card.rank == 8
       @current_suit = nil
@@ -93,18 +117,21 @@ class CrazyEights < Gamz::Game
       end
       advance_turn
     end
+
+    return :success
   end
 
   def do_draw_card(player)
-    raise rv :not_your_turn unless current_player == player
-    raise rv :invalid_action unless @current_suit
-    raise rv :have_playable_card if has_playable_card?(player)
-    raise rv :deck_empty if @deck.empty?
+    return :not_your_turn unless current_player == player
+    return :invalid_action unless @current_suit
+    return :have_playable_card if has_playable_card?(player)
+    return :deck_empty if @deck.empty?
 
     card = @deck.pop
     player.hand << card
-    inform_except player, :card_drawn, {player: player}
-    inform player, :card_drawn, {card: card}
+    inform_others :card_drawn, player
+
+    return :success, card
   end
 
   # BEGIN QUERY METHODS
@@ -112,12 +139,17 @@ class CrazyEights < Gamz::Game
   # simple clients that don't remember these things.
 
   def do_hand(player)
-    inform player, :hand, player.hand
+    return :success, player.hand
   end
 
   # END QUERY METHODS
 
   private
+
+  def inform_turn
+    inform current_player, :your_turn
+    inform_others :turn, current_player
+  end
 
   def up_card
     @discard.last
@@ -125,7 +157,7 @@ class CrazyEights < Gamz::Game
 
   def advance_turn
     @turn = (@turn+1) % players.length
-    inform_all :turn, current_player
+    inform_turn
   end
 
   def current_player
@@ -150,4 +182,4 @@ class CrazyEights < Gamz::Game
 
 end
 
-LobbyServer.new(CrazyEights, Player).start (ARGV[0] || 10000).to_i, (ARGV[1] || 10001).to_i
+Gamz::Lobby.new(CrazyEights, Player).start (ARGV[0] || 10000).to_i, (ARGV[1] || 10001).to_i
