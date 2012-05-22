@@ -3,4 +3,4 @@ module Gamz
 end
 
 require 'gamz/demux'
-require 'gamz/marshal'
+require 'gamz/protocol'

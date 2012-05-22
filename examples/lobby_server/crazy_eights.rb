@@ -182,4 +182,6 @@ class CrazyEights < Gamz::Lobby::Game
 
 end
 
-Gamz::Lobby.new(CrazyEights, Player).start (ARGV[0] || 10000).to_i, (ARGV[1] || 10001).to_i
+server = Gamz::Server.new
+server.listen((ARGV[0] || 10000).to_i)
+Gamz::Lobby.new(server, CrazyEights, Player).start

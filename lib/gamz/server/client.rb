@@ -3,19 +3,25 @@ module Gamz
 
     class Client
 
-      attr_accessor :control_sock, :address, :notify_sock, :reactor
+      attr_accessor :stream, :address, :reactor
 
-      def initialize(server, control_sock, address)
-        @server, @control_sock, @address = server, control_sock, address
+      def initialize(stream, address)
+        @stream, @address = stream, address
         @reactor = nil
       end
 
-      def notify(*args)
-        begin
-          @server.encoder.send_message @notify_sock, *args if @notify_sock
-        rescue => e
-          puts "[#{object_id}] NOTIFY: #{e.inspect}"
-        end
+      def read
+        @stream.recv_message
+      end
+
+      def respond(id, *data)
+        @stream.send_message 'r_'+id.to_s, *data if @stream
+        self
+      end
+
+      def notify(id, *data)
+        @stream.send_message "n_"+id.to_s, *data if @stream
+        self
       end
 
     end

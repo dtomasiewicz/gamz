@@ -13,7 +13,7 @@ module Gamz
       end
 
       def on_disconnect(client)
-        @clients.delete client
+        drop_client client
         @lobby.on_disconnect client
       end
 
@@ -23,14 +23,13 @@ module Gamz
 
       private
 
-      def react_leave_table(client)
-        @clients.delete client
+      def drop_client(client)
         client.reactor = @lobby
+        @clients.delete client
         @clients.each {|c| c.notify :left_table, @lobby.client_name(client)}
-
         if client == @owner
-          if @clients.length > 0
-            @owner = @clients.first
+          if @owner = @clients.first
+            # still at least 1 client at the table
             @clients.each do |c|
               if c == @owner
                 c.notify :own_table
@@ -39,10 +38,14 @@ module Gamz
               end
             end
           else
+            # no clients left at table
             @lobby.destroy_table self.name
           end
         end
+      end
 
+      def react_leave_table(client)
+        drop_client client
         return :success
       end
 

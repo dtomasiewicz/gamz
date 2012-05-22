@@ -7,18 +7,18 @@ module Gamz
 
       attr_reader :game_class, :player_class
 
-      def initialize(game_class, player_class)
-        @game_class, @player_class = game_class, player_class
-
-        @server = Gamz::Server::Server.new self
+      def initialize(server, game_class, player_class)
+        @server, @game_class, @player_class = server, game_class, player_class
 
         @names = {} # Client => client name
         @tables = {} # table name => Table
       end
 
-      def start(control_port, notify_port)
-        @server.listen control_port, notify_port
+      def start
+        old_reactor = @server.default_reactor
+        @server.default_reactor = self
         @server.start
+        @server.default_reactor = old_reactor
       end
 
       def client_name(client)
@@ -27,6 +27,10 @@ module Gamz
 
       def destroy_table(name)
         if table = @tables.delete(name)
+          table.clients.each do |c|
+            c.notify :table_destroyed
+            c.reactor = self
+          end
           @server.broadcast :table_destroyed, table
         end
       end

@@ -10,8 +10,8 @@ Class.new do
     @client.on_notify &method(:handle_notify)
   end
 
-  def start(control_port, notify_port)
-    @client.connect control_port, notify_port
+  def start(port)
+    @client.connect port
     @client.start
     @client.disconnect
   end
@@ -26,8 +26,8 @@ Class.new do
     end
   end
 
-  def handle_notify(type, *details)
-    puts "NOTIFY #{type} => #{JSON.dump details}"
+  def handle_notify(id, *details)
+    puts "NOTIFY #{id} => #{JSON.dump details}"
   end
 
-end.new.start (ARGV[0] || 10000).to_i, (ARGV[1] || 10001).to_i
+end.new.start (ARGV[0] || 10000).to_i

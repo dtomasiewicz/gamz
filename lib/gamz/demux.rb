@@ -26,33 +26,33 @@ module Gamz
       @running = false
     end
 
-    def read(sock = nil, &block)
-      set_handler :read, sock, block
+    def read(io = nil, &block)
+      set_handler :read, io, block
       self
     end
 
-    def stop_read(sock = nil)
-      unset_handler :read, sock
+    def stop_read(io = nil)
+      unset_handler :read, io
       self
     end
 
-    def write(sock = nil, &block)
-      set_handler :write, sock, block
+    def write(io = nil, &block)
+      set_handler :write, io, block
       self
     end
 
-    def stop_write(sock = nil)
-      unset_handler :write, sock
+    def stop_write(io = nil)
+      unset_handler :write, io
       self
     end
 
-    def error(sock = nil, &block)
-      set_handler :error, sock, block
+    def error(io = nil, &block)
+      set_handler :error, io, block
       self
     end
 
-    def stop_error(sock = nil)
-      unset_handler :error, sock
+    def stop_error(io = nil)
+      unset_handler :error, io
       self
     end
 
@@ -137,10 +137,10 @@ module Gamz
     end
 
     def step(timeout = nil)
-      if sel = IO.select(@handlers[:read].keys, @handlers[:write].keys, @handlers[:error].keys, timeout)
-        sel[0].each {|rsock| invoke_handler :read, rsock}
-        sel[1].each {|wsock| invoke_handler :write, wsock}
-        sel[2].each {|esock| invoke_handler :error, esock}
+      if sel = select(@handlers[:read].keys, @handlers[:write].keys, @handlers[:error].keys, timeout)
+        sel[0].each {|rio| invoke_handler :read, rio}
+        sel[1].each {|wio| invoke_handler :write, wio}
+        sel[2].each {|eio| invoke_handler :error, eio}
       end
       self
     end
@@ -148,29 +148,27 @@ module Gamz
     private
 
     # returns (new) default
-    def set_handler(type, sock, handler)
-      if sock
-        @handlers[type][sock] = handler
+    def set_handler(type, io, handler)
+      if io
+        @handlers[type][io] = handler
       else
         @default[type] = handler
       end
     end
 
-    def unset_handler(type, sock)
-      if sock
-        @handlers[type].delete sock
+    def unset_handler(type, io)
+      if io
+        @handlers[type].delete io
       else
         @default[type] = nil
       end
     end
 
-    def invoke_handler(type, sock)
-      if h = @handlers[type][sock]
-        h.call
-      elsif h = @default[type]
-        h.call sock
+    def invoke_handler(type, io)
+      if handler = (@handlers[type][io] || @default[type])
+        handler.call io
       else
-        raise "no suitable handler found for #{sock.inspect}"
+        raise "no suitable handler found for #{type}: #{io.inspect}"
       end
     end
 

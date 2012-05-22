@@ -5,22 +5,17 @@ module Gamz
 
   	class Client
 
-      attr_accessor :encoder
-
-      def initialize(encoder = Gamz::Marshal::JSONBinary.new)
-        @encoder = encoder
+      def initialize
         @demux = Gamz::Demux.new
-        @control = @notify = nil
+        @stream = nil
         @response_handlers = []
         @notify_handlers = {}
         @input_handler = nil
-
-        on_notify :claim_key, &method(:claim_notify)
       end
 
-      def on_notify(type = nil, &block)
-        type = type.to_s if type # allow symbols
-        @notify_handlers[type] = block
+      def on_notify(id = nil, &block)
+        id = id.to_s if id # allow symbols
+        @notify_handlers[id] = block
 
         self
       end
@@ -31,16 +26,22 @@ module Gamz
         self
       end
 
-      def connect(control_port, notify_port)
-        @control = open_conn control_port, method(:read_control)
-        @notify = open_conn notify_port, method(:read_notify)
+      def connect(port, opts = {})
+        host = opts[:host] || '0.0.0.0'
+        protocol = opts[:protocol] || Gamz::Protocol::JSONSocket
+
+        socket = Socket.new :INET, :STREAM
+        socket.connect Socket.sockaddr_in(port, host)
+        @demux.read socket, &method(:read_socket)
+        @stream = protocol.new socket
 
         self
       end
 
       def disconnect
-        @notify = close_conn @notify
-        @control = close_conn @control
+        @demux.stop_read @stream.socket
+        @stream.socket.close
+        @stream = nil
 
         self
       end
@@ -55,57 +56,31 @@ module Gamz
 
       def act(action, *data, &block)
         @response_handlers << block
-        @encoder.send_message @control, action, *data
+        @stream.send_message action, *data
 
         self
       end
 
       private
 
-      def claim_notify(key)
-        act :claim_notify, key do |res|
-          if res == 'success'
-            puts "NOTIFY CONNECTION CLAIMED"
+      def read_socket(socket)
+        id, *data = @stream.recv_message
+        rel, id = id.split '_', 2
+        if rel == 'n'
+          if h = @notify_handlers[id]
+            h.call *data
+          elsif h = @notify_handlers[nil]
+            h.call id, *data
           else
-            puts "FAILED TO CLAIM NOTIFY CONNECTION: #{res}"
+            raise "no suitable notify handler for #{id}"
           end
+        elsif h = @response_handlers.shift
+          h.call id, *data
         end
       end
-
-      def open_conn(port, read_handler)
-        sock = Socket.new :INET, :STREAM
-        sock.connect Addrinfo.tcp('127.0.0.1', port)
-        @demux.read sock, &read_handler
-
-        sock
-      end
-
-      def close_conn(sock)
-        @demux.stop_read sock
-        sock.close
-
-        nil
-      end
-
-      def read_control
-        if handler = @response_handlers.shift
-          handler.call *@encoder.recv_message(@control)
-        end
-      end
-
-      def read_notify
-        type, *data = @encoder.recv_message @notify
-        if @notify_handlers[type]
-          @notify_handlers[type].call *data
-        elsif @notify_handlers[nil]
-          @notify_handlers[nil].call type, *data
-        else
-          raise "no suitable notify handler for #{type}"
-        end
-      end
-
-      def read_input
-        input = STDIN.gets
+      
+      def read_input(input)
+        input = input.gets
         @input_handler.call input if @input_handler
       end
 
