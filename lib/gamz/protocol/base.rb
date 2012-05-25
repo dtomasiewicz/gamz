@@ -6,34 +6,45 @@ module Gamz
       attr_accessor :io
       alias_method :to_io, :io
 
-      def initialize(io)
+      def initialize(io, &block)
         @io = io
-        @io_ready = !respond_to?(:initialize_io)
+        @open = false
+
+        open! &block if block
       end
 
-      def io_ready?
-        @io_ready
+      def open?
+        @open
       end
 
-      def on_io_ready(&block)
-        if io_ready?
-          yield self
-        else
-          @on_io_ready = block
-        end
+      def on_open(&block)
+        @on_open = block
       end
 
-      def close
-        @io.close if @io.respond_to?(:close)
-        @io = nil
+      def on_closed(&block)
+        @on_closed = block
+      end
+
+      # should be extended
+      def open!(&block)
+        on_open &block if block
+      end
+
+      # should be extended
+      def close!(&block)
+        on_closed &block if block
       end
 
       protected
 
-      def io_ready!
-        @io_ready = true
-        @on_io_ready.call self if @on_io_ready
-        @on_io_ready = nil
+      def now_open!
+        @open = true
+        @on_open.call self if @on_open
+      end
+
+      def now_closed!
+        @open = false
+        @on_closed.call self if @on_closed
       end
 
     end

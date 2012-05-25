@@ -10,10 +10,6 @@ module Gamz
         @reactor = nil
       end
 
-      def read
-        @stream.recv_message
-      end
-
       def respond(id, *data)
         @stream.send_message 'r_'+id.to_s, *data if @stream
         self

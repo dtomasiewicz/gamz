@@ -17,7 +17,10 @@ module Gamz
 
       def recv_message
         len_packed = io.recv_nonblock 2
-        raise NoData if len_packed == ""
+        if len_packed == ""
+          close!
+          return nil
+        end
         json = io.recv_nonblock(len_packed.unpack('n')[0]).force_encoding JSON_ENCODING
         begin
           msg = JSON.parse(json)
@@ -27,6 +30,19 @@ module Gamz
         raise MalformedMessage unless msg.kind_of?(Array) && msg.length > 0
         msg[0] = msg[0].to_s
         return *msg
+      end
+
+      def open!
+        raise "Cannot re-open a closed socket!" if @closed
+        super
+        now_open!
+      end
+
+      def close!
+        super
+        io.close
+        @closed = true
+        now_closed!
       end
 
     end

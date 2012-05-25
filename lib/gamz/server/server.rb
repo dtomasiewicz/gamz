@@ -67,13 +67,6 @@ module Gamz
           @demux.stop_read socket
           socket.close
         end
-
-        self
-      end
-
-      def start(timeout = nil, &block)
-        @demux.start timeout, &block
-
         self
       end
 
@@ -83,39 +76,47 @@ module Gamz
       end
 
       def disconnect(client)
-        @demux.stop_read client.stream
-        @clients.delete client.stream
-        client.stream.close
-        client.stream = nil
-        puts "[#{client.object_id}] DISCONNECT"
-
-        # call disconnect handler
-        if @global_disconnect
-          @global_disconnect.call client
-        elsif reactor = reactor_for(client)
-          reactor.on_disconnect client if reactor.respond_to?(:on_disconnect)
-        end
-
+        client.stream.close!
         self
       end
 
       def notify_all(*args)
         @clients.values.each {|c| c.notify *args}
-
         self
       end
       alias_method :broadcast, :notify_all
+
+      # demux delegations
+
+      def start(*args, &block)
+        @demux.start *args, &block
+        self
+      end
+
+      def at(*args, &block)
+        @demux.at *args, &block
+        self
+      end
+
+      def in(*args, &block)
+        @demux.in *args, &block
+        self
+      end
+
+      def in_scaled(*args, &block)
+        @demux.in_scaled *args, &block
+        self
+      end
 
       private
 
       def read_listen(listen)
         socket, address = listen.accept_nonblock
-        stream = @listens[listen].new socket
-        @demux.read stream
 
-        stream.on_io_ready do
+        stream = @listens[listen].new socket do |stream|
           @clients[stream] = client = Client.new(stream, address)
           puts "[#{client.object_id}] CONNECT (#{address.ip_address}:#{address.ip_port})"
+
           # call connect handler
           if @global_connect
             @global_connect.call client
@@ -123,23 +124,17 @@ module Gamz
             reactor.on_connect client if reactor.respond_to?(:on_connect)
           end
         end
+        stream.on_closed &method(:stream_closed)
+
+        @demux.read stream
       end
 
       def read_stream(stream)
-        unless stream.io_ready?
-          stream.initialize_io
-          return
-        end
-
-        # it's possible the client may have already been disconnected during the same tick
-        return unless client = @clients[stream]
-
         begin
-          action, *data = client.read
-        rescue Gamz::Protocol::NoData
-          # socket was closed remotely
-          disconnect client
-          return
+          return unless message = stream.recv_message
+          # client may have been forcibly disconnected during this step
+          return unless client = @clients[stream]
+          action, *data = message
         rescue => e
           print_error e
           return
@@ -162,6 +157,23 @@ module Gamz
           client.respond *res
         rescue => e
           print_error e
+        end
+      end
+
+      def stream_closed(stream)
+        @demux.stop_read stream
+
+        # client may not have been fully connected yet
+        if client = @clients.delete(stream)
+          client.stream = nil
+          puts "[#{client.object_id}] DISCONNECT"
+
+          # call disconnect handler
+          if @global_disconnect
+            @global_disconnect.call client
+          elsif reactor = reactor_for(client)
+            reactor.on_disconnect client if reactor.respond_to?(:on_disconnect)
+          end
         end
       end
 
