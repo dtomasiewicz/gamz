@@ -7,7 +7,7 @@ module Gamz
 
       JSON_ENCODING = 'UTF-8'
 
-      def send_message(id, *data)
+      def send(id, *data)
         msg = [id]+data
         json = JSON.dump(msg).encode JSON_ENCODING
         len = json.bytesize
@@ -15,7 +15,7 @@ module Gamz
         io.sendmsg_nonblock data
       end
 
-      def recv_message
+      def on_readable
         len_packed = io.recv_nonblock 2
         if len_packed == ""
           close!

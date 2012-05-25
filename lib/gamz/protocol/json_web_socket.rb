@@ -3,7 +3,7 @@ module Gamz
 
     class JSONWebSocket < Base
 
-      def recv_message
+      def on_readable
         if @opening
           opening_handshake
           return nil

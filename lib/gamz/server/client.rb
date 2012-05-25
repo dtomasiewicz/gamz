@@ -16,7 +16,7 @@ module Gamz
       end
 
       def notify(id, *data)
-        @stream.send_message "n_"+id.to_s, *data if @stream
+        @stream.send "n_"+id.to_s, *data if @stream
         self
       end
 

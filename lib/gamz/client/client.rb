@@ -56,7 +56,7 @@ module Gamz
 
       def act(action, *data, &block)
         @response_handlers << block
-        @stream.send_message action, *data
+        @stream.send action, *data
 
         self
       end
@@ -64,7 +64,7 @@ module Gamz
       private
 
       def read_socket(socket)
-        id, *data = @stream.recv_message
+        id, *data = @stream.on_readable
         rel, id = id.split '_', 2
         if rel == 'n'
           if h = @notify_handlers[id]

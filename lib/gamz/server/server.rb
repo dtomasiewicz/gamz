@@ -131,7 +131,7 @@ module Gamz
 
       def read_stream(stream)
         begin
-          return unless message = stream.recv_message
+          return unless message = stream.on_readable
           # client may have been forcibly disconnected during this step
           return unless client = @clients[stream]
           action, *data = message
