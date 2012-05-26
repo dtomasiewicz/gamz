@@ -1,7 +1,3 @@
-# default protocol implementation(s)
-require 'gamz/protocol/json_socket/server_methods'
-require 'gamz/protocol/web_socket/server_methods'
-
 module Gamz
   module Server
 
