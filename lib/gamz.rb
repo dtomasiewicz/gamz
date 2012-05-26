@@ -4,4 +4,3 @@ end
 
 require 'gamz/demux'
 require 'gamz/protocol'
-require 'gamz/listener'

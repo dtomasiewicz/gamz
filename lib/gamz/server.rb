@@ -12,7 +12,5 @@ module Gamz
 
 end
 
-require 'gamz/listener'
 require 'gamz/server/server'
-require 'gamz/server/client'
 require 'gamz/server/reactor'

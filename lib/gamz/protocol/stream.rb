@@ -1,7 +1,7 @@
 module Gamz
   module Protocol
 
-    class Base
+    class Stream
 
       def initialize
         @open = false

@@ -1,4 +1,5 @@
-require 'socket'
+require 'gamz'
+require 'gamz/protocol/socket'
 
 module Gamz
   module Client
@@ -28,11 +29,10 @@ module Gamz
 
       def connect(port, opts = {})
         host = opts[:host] || '0.0.0.0'
-        protocol = opts[:protocol] || Gamz::Protocol::JSONSocket
 
         socket = Socket.new :INET, :STREAM
         socket.connect Socket.sockaddr_in(port, host)
-        @stream = protocol.new socket
+        @stream = Gamz::Protocol::Socket::Stream.new socket
         @stream.on_message &method(:dispatch)
         @demux.add @stream
 

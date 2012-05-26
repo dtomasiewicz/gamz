@@ -1,4 +1,6 @@
-require 'set'
+# default protocol implementation(s)
+require 'gamz/protocol/socket/server_methods'
+require 'gamz/protocol/web_socket/server_methods'
 
 module Gamz
   module Server
@@ -50,22 +52,34 @@ module Gamz
         self
       end
 
-      # convenience method for socket listeners
-      def socket_listen(*args)
-        listener = Gamz::Listener::Socket.new *args
-        listener.on_accept &method(:socket_accept)
-        add_listener listener
-        self
-      end
-      alias_method :listen, :socket_listen
-
       # note: @clients should never be externally mutable
       def clients
         @clients.values
       end
 
-      def kick(client)
-        client.stream.close
+      def add_client(client)
+        client.stream.open do |stream|
+          @clients[stream] = client
+          stream.on_message &method(:dispatch)
+          stream.on_closed &method(:stream_closed)
+
+          puts "[#{client}] CONNECT"
+
+          # call connect handler
+          if @global_connect
+            @global_connect.call client
+          elsif reactor = reactor_for(client)
+            reactor.on_connect client if reactor.respond_to?(:on_connect)
+          end
+        end
+
+        @demux.add client.stream
+        self
+      end
+      alias_method :<<, :add_client
+
+      def remove_client(client)
+        client.stream.close # on_closed is already set to &:stream_closed
         self
       end
 
@@ -101,18 +115,7 @@ module Gamz
 
       def socket_accept(stream, address)
         stream.open do
-          stream.on_message &method(:dispatch)
-          stream.on_closed &method(:stream_closed)
-
-          @clients[stream] = client = Client.new(stream, address)
-          puts "[#{client.object_id}] CONNECT (#{address.ip_address}:#{address.ip_port})"
-
-          # call connect handler
-          if @global_connect
-            @global_connect.call client
-          elsif reactor = reactor_for(client)
-            reactor.on_connect client if reactor.respond_to?(:on_connect)
-          end
+          add_client Client.new(stream, address)
         end
 
         @demux.add stream
@@ -123,7 +126,6 @@ module Gamz
 
         # client may not have been fully connected yet
         if client = @clients.delete(stream)
-          client.stream = nil
           puts "[#{client.object_id}] DISCONNECT"
 
           # call disconnect handler
