@@ -1,6 +1,6 @@
 module Gamz
   module Protocol
-    module WebSocket
+    module JSONSocket
 
       class Listener < Protocol::Socket::Listener
 

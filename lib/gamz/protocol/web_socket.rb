@@ -1,3 +1,5 @@
+require 'gamz/protocol/socket'
+
 module Gamz
   module Protocol
 
@@ -9,4 +11,3 @@ end
 
 require 'gamz/protocol/web_socket/listener'
 require 'gamz/protocol/web_socket/stream'
-require 'gamz/protocol/web_socket/client'

@@ -1,5 +1,5 @@
 require 'gamz'
-require 'gamz/protocol/socket'
+require 'gamz/protocol/json_socket'
 
 module Gamz
   module Client
@@ -32,7 +32,7 @@ module Gamz
 
         socket = Socket.new :INET, :STREAM
         socket.connect Socket.sockaddr_in(port, host)
-        @stream = Gamz::Protocol::Socket::Stream.new socket
+        @stream = Gamz::Protocol::JSONSocket::Stream.new socket
         @stream.on_message &method(:dispatch)
         @demux.add @stream
 
@@ -58,7 +58,7 @@ module Gamz
 
       def act(action, *data, &block)
         @response_handlers << block
-        @stream.send action, *data
+        @stream.send_message [action, *data]
 
         self
       end
@@ -66,7 +66,7 @@ module Gamz
       private
 
       def dispatch(stream, data)
-        id = data.shift
+        id, *data = data
         rel, id = id.split '_', 2
         if rel == 'n'
           if h = @notify_handlers[id]

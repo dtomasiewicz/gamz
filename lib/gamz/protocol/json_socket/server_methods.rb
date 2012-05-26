@@ -1,8 +1,8 @@
-require 'gamz/protocol/socket'
+require 'gamz/protocol/json_socket'
 
 module Gamz
   module Protocol
-    module Socket
+    module JSONSocket
 
       module ServerMethods
 
@@ -20,5 +20,5 @@ module Gamz
 end
 
 class Gamz::Server::Server
-  include Gamz::Protocol::Socket::ServerMethods
+  include Gamz::Protocol::JSONSocket::ServerMethods
 end

@@ -12,12 +12,12 @@ module Gamz
       end
 
       def respond(id, *data)
-        @stream.send 'r_'+id.to_s, *data
+        @stream.send_message ['r_'+id.to_s, *data]
         self
       end
 
       def notify(id, *data)
-        @stream.send "n_"+id.to_s, *data
+        @stream.send_message ['n_'+id.to_s, *data]
         self
       end
 

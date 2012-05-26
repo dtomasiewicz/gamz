@@ -4,15 +4,10 @@ module Gamz
   module Protocol
     module WebSocket
 
-      class Stream < Protocol::Stream
+      class Stream < Protocol::Socket::Stream
 
-        def initialize(socket)
-          super()
-          @socket = socket
-        end
-
-        def to_io
-          @socket
+        def send_message(msg)
+          # TODO
         end
 
         def do_read

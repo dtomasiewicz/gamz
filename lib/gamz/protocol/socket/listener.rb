@@ -30,7 +30,13 @@ module Gamz
 
         def do_read
           socket, address = @socket.accept_nonblock
-          accept! Client.new(Stream.new(socket), address)
+          accept! create_client(socket, address)
+        end
+
+        protected
+
+        def create_client(socket, address)
+          Client.new Stream.new(socket), address
         end
 
       end

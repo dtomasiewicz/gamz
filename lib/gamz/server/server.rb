@@ -1,5 +1,5 @@
 # default protocol implementation(s)
-require 'gamz/protocol/socket/server_methods'
+require 'gamz/protocol/json_socket/server_methods'
 require 'gamz/protocol/web_socket/server_methods'
 
 module Gamz
@@ -139,7 +139,7 @@ module Gamz
 
       def dispatch(stream, data)
         client = @clients[stream]
-        action = data.shift
+        action, *data = data
 
         puts "[#{client.object_id}] ACT #{action} => #{data}"
 
