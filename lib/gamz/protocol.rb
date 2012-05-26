@@ -2,9 +2,6 @@ module Gamz
 
   module Protocol
 
-    class MalformedMessage < IOError
-    end
-
   end
 
 end

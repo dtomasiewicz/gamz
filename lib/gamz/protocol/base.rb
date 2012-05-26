@@ -3,14 +3,8 @@ module Gamz
 
     class Base
 
-      attr_accessor :io
-      alias_method :to_io, :io
-
-      def initialize(io, &block)
-        @io = io
+      def initialize
         @open = false
-
-        open! &block if block
       end
 
       def open?
@@ -25,26 +19,34 @@ module Gamz
         @on_closed = block
       end
 
+      def on_message(&block)
+        @on_message = block
+      end
+
       # should be extended
-      def open!(&block)
+      def open(&block)
         on_open &block if block
       end
 
       # should be extended
-      def close!(&block)
+      def close(&block)
         on_closed &block if block
       end
 
       protected
 
-      def now_open!
+      def open!
         @open = true
         @on_open.call self if @on_open
       end
 
-      def now_closed!
+      def closed!
         @open = false
         @on_closed.call self if @on_closed
+      end
+
+      def message!(data)
+        @on_message.call self, data if @on_message
       end
 
     end

@@ -1,3 +1,5 @@
+require 'set'
+
 module Gamz
 
   class Demux
@@ -9,15 +11,10 @@ module Gamz
     def initialize
       @tick_rate = DEFAULT_TICK_RATE
 
-      @handlers = {
-        read: {},
-        write: {},
-        error: {}
-      }
-      @default = {
-        read: nil,
-        write: nil,
-        error: nil
+      @streams = {
+        read: Set.new,
+        write: Set.new,
+        error: Set.new
       }
 
       @timer = []
@@ -26,33 +23,19 @@ module Gamz
       @running = false
     end
 
-    def read(io = nil, &block)
-      set_handler :read, io, block
+    def add(io, events = [:read])
+      events = [events] unless events.respond_to? :each
+      events.each do |event|
+        @streams[event] << io
+      end
       self
     end
 
-    def stop_read(io = nil)
-      unset_handler :read, io
-      self
-    end
-
-    def write(io = nil, &block)
-      set_handler :write, io, block
-      self
-    end
-
-    def stop_write(io = nil)
-      unset_handler :write, io
-      self
-    end
-
-    def error(io = nil, &block)
-      set_handler :error, io, block
-      self
-    end
-
-    def stop_error(io = nil)
-      unset_handler :error, io
+    def remove(io, events = [:read, :write, :error])
+      events = [events] unless events.respond_to? :each
+      events.each do |event|
+        @streams[event].delete io
+      end
       self
     end
 
@@ -137,39 +120,12 @@ module Gamz
     end
 
     def step(timeout = nil)
-      if sel = select(@handlers[:read].keys, @handlers[:write].keys, @handlers[:error].keys, timeout)
-        sel[0].each {|rio| invoke_handler :read, rio}
-        sel[1].each {|wio| invoke_handler :write, wio}
-        sel[2].each {|eio| invoke_handler :error, eio}
+      if sel = select(@streams[:read].to_a, @streams[:write].to_a, @streams[:error].to_a, timeout)
+        sel[0].each &:do_read
+        sel[1].each &:do_write
+        sel[2].each &:do_error
       end
       self
-    end
-
-    private
-
-    # returns (new) default
-    def set_handler(type, io, handler)
-      if io
-        @handlers[type][io] = handler
-      else
-        @default[type] = handler
-      end
-    end
-
-    def unset_handler(type, io)
-      if io
-        @handlers[type].delete io
-      else
-        @default[type] = nil
-      end
-    end
-
-    def invoke_handler(type, io)
-      if handler = (@handlers[type][io] || @default[type])
-        handler.call io
-      else
-        raise "no suitable handler found for #{type}: #{io.inspect}"
-      end
     end
 
   end

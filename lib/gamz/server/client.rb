@@ -11,7 +11,7 @@ module Gamz
       end
 
       def respond(id, *data)
-        @stream.send_message 'r_'+id.to_s, *data if @stream
+        @stream.send 'r_'+id.to_s, *data if @stream
         self
       end
 

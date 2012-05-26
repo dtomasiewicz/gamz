@@ -13,3 +13,4 @@ module Gamz
 end
 
 require 'gamz/client/client'
+require 'gamz/client/input_stream'

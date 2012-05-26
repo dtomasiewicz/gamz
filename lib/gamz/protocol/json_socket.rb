@@ -7,42 +7,51 @@ module Gamz
 
       JSON_ENCODING = 'UTF-8'
 
+      def initialize(socket)
+        super()
+        @socket = socket
+      end
+
+      def to_io
+        @socket
+      end
+
       def send(id, *data)
         msg = [id]+data
         json = JSON.dump(msg).encode JSON_ENCODING
         len = json.bytesize
         data = [len, json].pack "nA#{len}"
-        io.sendmsg_nonblock data
+        @socket.sendmsg_nonblock data
       end
 
-      def on_readable
-        len_packed = io.recv_nonblock 2
+      def do_read
+        len_packed = @socket.recv_nonblock 2
         if len_packed == ""
-          close!
-          return nil
+          close
+        else
+          json = @socket.recv_nonblock(len_packed.unpack('n')[0]).force_encoding JSON_ENCODING
+          begin
+            msg = JSON.parse(json)
+            raise unless msg.kind_of?(Array) && msg.length > 0
+            msg[0] = msg[0].to_s
+          rescue
+            msg = nil
+          end
+          message! msg if msg
         end
-        json = io.recv_nonblock(len_packed.unpack('n')[0]).force_encoding JSON_ENCODING
-        begin
-          msg = JSON.parse(json)
-        rescue JSON::ParseError
-          raise MalformedMessage
-        end
-        raise MalformedMessage unless msg.kind_of?(Array) && msg.length > 0
-        msg[0] = msg[0].to_s
-        return *msg
       end
 
-      def open!
+      def open
         raise "Cannot re-open a closed socket!" if @closed
         super
-        now_open!
+        open!
       end
 
-      def close!
+      def close
         super
-        io.close
+        @socket.close
         @closed = true
-        now_closed!
+        closed!
       end
 
     end

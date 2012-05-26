@@ -32,8 +32,9 @@ module Gamz
 
         socket = Socket.new :INET, :STREAM
         socket.connect Socket.sockaddr_in(port, host)
-        @demux.read socket, &method(:read_socket)
         @stream = protocol.new socket
+        @stream.on_message &method(:dispatch)
+        @demux.add @stream
 
         self
       end
@@ -47,9 +48,10 @@ module Gamz
       end
 
       def start(timeout = nil, &block)
-        @demux.read STDIN, &method(:read_input)
+        input = InputStream.new STDIN, &method(:read_input)
+        @demux.add input
         @demux.start timeout, &block
-        @demux.stop_read STDIN
+        @demux.remove input
 
         self
       end
@@ -63,8 +65,8 @@ module Gamz
 
       private
 
-      def read_socket(socket)
-        id, *data = @stream.on_readable
+      def dispatch(stream, data)
+        id = data.shift
         rel, id = id.split '_', 2
         if rel == 'n'
           if h = @notify_handlers[id]

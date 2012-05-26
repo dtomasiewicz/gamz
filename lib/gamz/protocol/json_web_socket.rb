@@ -1,31 +1,51 @@
+# implements the SERVER side of the WebSocket protocol only!
+
 module Gamz
   module Protocol
 
     class JSONWebSocket < Base
 
-      def on_readable
-        if @opening
+      def do_read
+        case @state
+        when :open
+          # TODO ping/pong/message?
+          nil
+        when :opening
           opening_handshake
-          return nil
-        elsif @closing
+          nil
+        when :closing
           closing_handshake
-          return nil
+          nil
         else
-          # ping? pong? message?
+          # nil, closed
+          raise "Invalid WebSockets read state: #{@state}"
         end
       end
 
+      def open!
+        raise "WebSockets can only be opened once!" unless @state == nil
+        super
+        @state = :opening
+      end
+
       def close!
-        @closing = true
-        # send closing message
+        raise "Cannot close non-open WebSocket." unless @state == :open
+        super
+        @state = :closing
       end
 
       private
 
       def opening_handshake
+        # TODO
+        @state = :open
+        now_open!
       end
 
       def closing_handshake
+        # TODO
+        @state = :closed
+        now_closed!
       end
 
     end

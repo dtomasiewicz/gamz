@@ -1,4 +1,4 @@
-require 'socket'
+require 'set'
 
 module Gamz
   module Server
@@ -11,14 +11,8 @@ module Gamz
         @default_reactor = default_reactor
 
         @demux = Gamz::Demux.new
-        # default read handler assumes a client control socket
-        @demux.read &method(:read_stream)
-
         @clients = {} # stream => Client
         @suppress_reactor_errors = true
-
-        @listens = {} # Socket => Protocol
-        @addr_listens = {} # [port, host] => Socket
 
         # these reactors take precedence over client/default reactors
         @global_actions = {}
@@ -44,39 +38,34 @@ module Gamz
       end
       alias_method :on_disconnect, :global_disconnect
 
-      def listen(port, opts = {})
-        host = opts[:host] || '0.0.0.0'
-        protocol = opts[:protocol] || Gamz::Protocol::JSONSocket
-        backlog = opts[:backlog] || 10
-
-        raise "already listening on #{host}:#{port}" if @addr_listens[[port, host]]
-
-        @addr_listens[[port, host]] = socket = Socket.new(:INET, :STREAM)
-        @listens[socket] = protocol
-        socket.setsockopt Socket::SOL_SOCKET, Socket::SO_REUSEADDR, true
-        socket.bind Socket.sockaddr_in(port, host)
-        socket.listen backlog
-        @demux.read socket, &method(:read_listen)
-
+      def add_listener(listener)
+        listener.open
+        @demux.add listener
         self
       end
 
-      def stop_listen(port, host = '0.0.0.0')
-        if socket = @addr_listens.delete([port, host])
-          @listens.delete socket
-          @demux.stop_read socket
-          socket.close
-        end
+      def remove_listener(listener)
+        @demux.remove listener
+        listener.close
         self
       end
 
-      # only internally mutable
+      # convenience method for socket listeners
+      def socket_listen(*args)
+        listener = Gamz::Listener::Socket.new *args
+        listener.on_accept &method(:socket_accept)
+        add_listener listener
+        self
+      end
+      alias_method :listen, :socket_listen
+
+      # note: @clients should never be externally mutable
       def clients
         @clients.values
       end
 
-      def disconnect(client)
-        client.stream.close!
+      def kick(client)
+        client.stream.close
         self
       end
 
@@ -110,10 +99,11 @@ module Gamz
 
       private
 
-      def read_listen(listen)
-        socket, address = listen.accept_nonblock
+      def socket_accept(stream, address)
+        stream.open do
+          stream.on_message &method(:dispatch)
+          stream.on_closed &method(:stream_closed)
 
-        stream = @listens[listen].new socket do |stream|
           @clients[stream] = client = Client.new(stream, address)
           puts "[#{client.object_id}] CONNECT (#{address.ip_address}:#{address.ip_port})"
 
@@ -124,44 +114,12 @@ module Gamz
             reactor.on_connect client if reactor.respond_to?(:on_connect)
           end
         end
-        stream.on_closed &method(:stream_closed)
 
-        @demux.read stream
-      end
-
-      def read_stream(stream)
-        begin
-          return unless message = stream.on_readable
-          # client may have been forcibly disconnected during this step
-          return unless client = @clients[stream]
-          action, *data = message
-        rescue => e
-          print_error e
-          return
-        end
-
-        puts "[#{client.object_id}] ACT #{action} => #{data}"
-
-        begin
-          res = dispatch client, action, data
-          res = [res] unless res.kind_of?(Array)
-        rescue => e
-          raise e unless @suppress_reactor_errors
-          print_error e
-          res = [:reactor_error]
-        end
-        
-        puts "[#{client.object_id}] RES #{res.first} => #{res[1..-1]}"
-
-        begin
-          client.respond *res
-        rescue => e
-          print_error e
-        end
+        @demux.add stream
       end
 
       def stream_closed(stream)
-        @demux.stop_read stream
+        @demux.remove stream
 
         # client may not have been fully connected yet
         if client = @clients.delete(stream)
@@ -177,13 +135,33 @@ module Gamz
         end
       end
 
-      def dispatch(client, action, data)
-        if r = @global_actions[action]
-          return r.call client, *data
-        elsif reactor = reactor_for(client)
-          return reactor.on_action client, action, *data
-        else
-          return :invalid_action
+      def dispatch(stream, data)
+        client = @clients[stream]
+        action = data.shift
+
+        puts "[#{client.object_id}] ACT #{action} => #{data}"
+
+        begin
+          if r = @global_actions[action]
+            res = r.call client, *data
+          elsif reactor = reactor_for(client)
+            res = reactor.on_action client, action, *data
+          else
+            res = [:invalid_action]
+          end
+        rescue => e
+          raise e unless @suppress_reactor_errors
+          print_error e
+          res = [:reactor_error]
+        end
+        
+        res = [res] unless res.kind_of?(Array)
+        puts "[#{client.object_id}] RES #{res.first} => #{res[1..-1]}"
+
+        begin
+          client.respond *res
+        rescue => e
+          print_error e
         end
       end
 
