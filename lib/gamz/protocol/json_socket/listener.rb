@@ -6,7 +6,7 @@ module Gamz
 
         protected
 
-        def create_client(socket, address)
+        def construct_client(socket, address)
           Protocol::Socket::Client.new Stream.new(socket), address
         end
 

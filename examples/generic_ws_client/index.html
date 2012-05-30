@@ -48,10 +48,12 @@
         <label>Host: <input id="host" value="0.0.0.0"></label> 
         <label>Port <input id="port" value="10001"></label>
         <button id="connect">connect</button>
+        <input id="status" readonly="readonly" size="50">
+        <button id="disconnect">disconnect</button>
       </p>
     </div>
     <div id="terminal">
-      <textarea id="stdout" cols="80" rows="10"></textarea>
+      <textarea id="stdout" cols="80" rows="10" readonly="readonly"></textarea>
       <input id="stdin" size="80">
     </div>
   </body>

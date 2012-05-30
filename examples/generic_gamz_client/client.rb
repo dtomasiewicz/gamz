@@ -11,9 +11,9 @@ Class.new do
   end
 
   def start(port)
-    @client.connect port
+    @client.open port
     @client.start
-    @client.disconnect
+    @client.close
   end
 
   private

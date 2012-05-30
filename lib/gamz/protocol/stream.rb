@@ -46,6 +46,9 @@ module Gamz
       end
 
       def message!(data)
+        raise "massage is not an array" unless data.kind_of?(Array)
+        raise "message contains no data" unless data.length > 0
+        raise "first message component is not a string" unless data.first.is_a? String
         @on_message.call self, data if @on_message
       end
 

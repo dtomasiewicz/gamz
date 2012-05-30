@@ -27,7 +27,7 @@ module Gamz
         self
       end
 
-      def connect(port, opts = {})
+      def open(port, opts = {})
         host = opts[:host] || '0.0.0.0'
 
         socket = Socket.new :INET, :STREAM
@@ -39,7 +39,7 @@ module Gamz
         self
       end
 
-      def disconnect
+      def close
         @demux.stop_read @stream.socket
         @stream.socket.close
         @stream = nil

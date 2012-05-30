@@ -54,10 +54,10 @@ module Gamz
       end
 
       def add_client(client)
+        client.stream.on_closed &method(:stream_closed)
         client.stream.open do |stream|
           @clients[stream] = client
           stream.on_message &method(:dispatch)
-          stream.on_closed &method(:stream_closed)
 
           puts "[#{client}] CONNECT"
 

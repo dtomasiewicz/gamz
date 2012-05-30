@@ -16,19 +16,13 @@ module Gamz
         end
 
         def do_read
-          len_packed = socket.recv_nonblock 2
-          if len_packed == ""
-            close
-          else
+          begin
+            len_packed = socket.recv_nonblock 2
+            raise if len_packed.bytesize == 0
             json = socket.recv_nonblock(len_packed.unpack('n')[0]).force_encoding JSON_ENCODING
-            begin
-              msg = JSON.parse(json)
-              raise unless msg.kind_of?(Array) && msg.length > 0
-              msg[0] = msg[0].to_s
-            rescue
-              msg = nil
-            end
-            message! msg if msg
+            message! JSON.parse(json)
+          rescue
+            close
           end
         end
 
@@ -40,7 +34,7 @@ module Gamz
 
         def close
           super
-          @socket.close
+          socket.close
           @closed = true
           closed!
         end

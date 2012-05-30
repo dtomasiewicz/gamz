@@ -1,5 +1,7 @@
-# implements the SERVER side of the WebSocket protocol only!
+require 'lib_web_sockets'
+require 'json'
 
+# implements the SERVER side of the WebSocket protocol only!
 module Gamz
   module Protocol
     module WebSocket
@@ -7,50 +9,33 @@ module Gamz
       class Stream < Protocol::Socket::Stream
 
         def send_message(msg)
-          # TODO
+          @ws.send_message JSON.dump(msg)
         end
 
         def do_read
-          case @state
-          when :open
-            # TODO ping/pong/message?
-            nil
-          when :opening
-            opening_handshake
-            nil
-          when :closing
-            closing_handshake
-            nil
-          else
-            # nil, closed
-            raise "Invalid WebSockets read state: #{@state}"
+          begin
+            @ws.recv_data
+          rescue => e
+            puts e.inspect
+            puts e.backtrace[0]
+            socket.close
+            closed!
           end
         end
 
         def open
-          raise "WebSockets can only be opened once!" unless @state == nil
           super
-          @state = :opening
+
+          @ws = LibWebSockets::ServerConnection.wrap(socket) do |message|
+            message! JSON.parse(message) rescue close
+          end
+          @ws.on_open { open! }
+          @ws.on_close { closed! }
         end
 
         def close
-          raise "Cannot close non-open WebSocket." unless @state == :open
           super
-          @state = :closing
-        end
-
-        private
-
-        def opening_handshake
-          # TODO
-          @state = :open
-          #open!
-        end
-
-        def closing_handshake
-          # TODO
-          @state = :closed
-          #closed!
+          @ws.close
         end
 
       end
