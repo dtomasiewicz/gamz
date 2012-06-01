@@ -9,18 +9,22 @@ module Gamz
       class Stream < Protocol::Socket::Stream
 
         def send_message(msg)
-          @ws.send_message JSON.dump(msg)
+          @ws.send JSON.dump(msg)
         end
 
         def do_read
           begin
-            @ws.recv_data
+            @ws.recv
           rescue => e
             puts e.inspect
             puts e.backtrace[0]
             socket.close
             closed!
           end
+        end
+
+        def ping(*args, &block)
+          @ws.ping *args, &block
         end
 
         def open

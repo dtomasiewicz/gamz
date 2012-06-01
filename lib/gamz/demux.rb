@@ -39,11 +39,8 @@ module Gamz
       self
     end
 
-    # schedule execution of the passed block at the given <time> (or as soon
+    # schedule execution of the passed block at the given _time_ (or as soon
     # afterwards as possible)
-    # - the actual time elapsed before execution does NOT scale with load
-    # - implemented backwards to allow use of pop instead of shift in #start
-
     def at(time, &block)
       if @schedule.empty?
         @schedule << [time, block]
@@ -55,17 +52,13 @@ module Gamz
       self
     end
 
-    def in(diff, &block)
-      at Time.now+diff, &block
+    # schedule execution of the passed block in _seconds_ seconds
+    def seconds(seconds, &block)
+      at Time.now+seconds, &block
     end
 
-    # schedule execution of the passed block to occur in at least <seconds>
-    # - the actual time elapsed before execution scales with load (more
-    #   load = more skew)
-    # - implemented backwards to allow use of pop instead of shift in #start
-
-    def in_scaled(seconds, &block)
-      ticks = (seconds*@tick_rate).round
+    # schedule execution of the passed block after _ticks_ ticks
+    def ticks(ticks, &block)
       if @timer.empty?
         @timer << [ticks, block]
       else
@@ -82,39 +75,68 @@ module Gamz
       self
     end
 
-    # if <timeout> is given without a bock, server will run for at least that many
-    # seconds before this method returns.
-    #
-    # if <timeout> is given along with a block, the server will run for at least
-    # <timeout> seconds, then execute the block and run for <timeout> seconds again 
-    # if the block returns a true value, repeating until the block returns a false
-    # value
-    #
-    # if no timeout is given, the server will run until interrupted
+    # Calls the given _block_ every _period_ seconds. If _immediate_ is true
+    # (default), the first execution will occur immediately. If _preemptive_ is
+    # true (default), the next execution will be scheduled *before* the current 
+    # one, resulting in uniform delays between block calls regardless of the
+    # block's execution time.
+    def each_seconds(period, immediate = true, preemptive = true, &block)
+      if preemptive
+        cycle = proc { self.seconds period, &cycle; block.call }
+      else
+        cycle = proc { block.call; self.seconds period, &cycle }
+      end
+      if immediate
+        cycle.call
+      else
+        self.seconds period, &cycle
+      end
+    end
 
+    # Calls the given _block_ every _period_ ticks. If _immediate_ is true
+    # (default), the firs texecution will occur immediately.
+    def each_ticks(delta, immediate = true, &block)
+      cycle = proc { block.call; self.ticks ticks, &cycle }
+      if immediate
+        cycle.call
+      else
+        self.ticks ticks, &cycle
+      end
+    end
+
+    # Start the demultiplexer's main loop. If _timeout_ is given without a
+    # block, will run for at least that many seconds before this method 
+    # returns.
+    #
+    # If _timeout_ is given along with a block, will run for at least _timeout_
+    # seconds, then execute the block and run for _timeout_ seconds again if
+    # the block returns a true value, repeating until the block returns a false
+    # value.
+    #
+    # If no _timeout_ is given, the server will run until interrupted.
     def start(timeout = nil, &block)
       raise "demux already running" if @running
       step_timeout = 1.0/@tick_rate
 
       if timeout
-        handle_to = Proc.new do
+        cycle = proc do
           if block
             if @running = block.call
-              self.in timeout, &handle_to
+              self.in timeout, &cycle
             end
           else
             @running = false
           end
         end
-        self.in timeout, &handle_to
+        self.in timeout, &cycle
       end
 
       @running = true
       while @running
-        step step_timeout
         @schedule.pop[1].call until @schedule.empty? || @schedule.last[0] > Time.now
-        @timer.last[0] -= 1 unless @timer.empty?
         @timer.pop[1].call until @timer.empty? || @timer.last[0] > 0
+        step step_timeout
+        @timer.last[0] -= 1 unless @timer.empty?
       end
       self
     end

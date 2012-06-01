@@ -142,17 +142,20 @@ window.onload = function() {
 
   terminal.stdin.onkeyup = function(e) {
     if(e.keyCode == KEYCODE_RETURN) {
-      e.preventDefault();
-      print('>>> '+this.value);
-      var input = this.value.split(' ', 2), data;
-      this.value = "";
+      if(terminal.client) {
+        print('>>> '+this.value);
+        var input = this.value.split(' ', 2), data;
+        this.value = "";
 
-      data = input[1] ? JSON.parse(input[1]) : [];
-      terminal.client.act(input[0], data, function(res) {
-        print("RESPONSE["+input[0]+"] "+res+" => "+JSON.stringify(
-          Array.prototype.slice.call(arguments, 1)
-        ));
-      });
+        data = input[1] ? JSON.parse(input[1]) : [];
+        terminal.client.act(input[0], data, function(res) {
+          print("RESPONSE["+input[0]+"] "+res+" => "+JSON.stringify(
+            Array.prototype.slice.call(arguments, 1)
+          ));
+        });
+      }
+      return false;
     }
+    return true;
   };
 };

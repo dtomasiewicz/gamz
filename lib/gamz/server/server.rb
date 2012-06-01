@@ -97,13 +97,23 @@ module Gamz
         self
       end
 
-      def in(*args, &block)
-        @demux.in *args, &block
+      def seconds(*args, &block)
+        @demux.seconds *args, &block
         self
       end
 
-      def in_scaled(*args, &block)
-        @demux.in_scaled *args, &block
+      def ticks(*args, &block)
+        @demux.ticks *args, &block
+        self
+      end
+
+      def each_seconds(*args, &block)
+        @demux.each_seconds *args, &block
+        self
+      end
+
+      def each_ticks(*args, &block)
+        @demux.each_ticks *args, &block
         self
       end
 
