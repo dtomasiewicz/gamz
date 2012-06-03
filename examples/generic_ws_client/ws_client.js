@@ -10,7 +10,7 @@ var GamzClient = function() {
   // private
   var dispatch = function(msg) {
     msg = JSON.parse(msg.data);
-    var id = msg.shift().split('_', 2), prefix;
+    var id = msg.shift().split(/_(.+)/), prefix;
     msg.unshift(id[1]);
     if(id[0] == 'n') {
       if(self.onnotify) {
@@ -144,15 +144,19 @@ window.onload = function() {
     if(e.keyCode == KEYCODE_RETURN) {
       if(terminal.client) {
         print('>>> '+this.value);
-        var input = this.value.split(' ', 2), data;
-        this.value = "";
+        var input = this.value.split(/ (.+)/), data;
 
-        data = input[1] ? JSON.parse(input[1]) : [];
-        terminal.client.act(input[0], data, function(res) {
-          print("RESPONSE["+input[0]+"] "+res+" => "+JSON.stringify(
-            Array.prototype.slice.call(arguments, 1)
-          ));
-        });
+        try {
+          data = JSON.parse(input[1] || '[]');
+          terminal.client.act(input[0], data, function(res) {
+            print("RESPONSE["+input[0]+"] "+res+" => "+JSON.stringify(
+              Array.prototype.slice.call(arguments, 1)
+            ));
+          });
+          this.value = "";
+        } catch(e) {
+          alert("Could not parse data: "+e.message);
+        }
       }
       return false;
     }

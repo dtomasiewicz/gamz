@@ -55,6 +55,7 @@ module Gamz
     # schedule execution of the passed block in _seconds_ seconds
     def seconds(seconds, &block)
       at Time.now+seconds, &block
+      self
     end
 
     # schedule execution of the passed block after _ticks_ ticks
@@ -91,6 +92,7 @@ module Gamz
       else
         self.seconds period, &cycle
       end
+      self
     end
 
     # Calls the given _block_ every _period_ ticks. If _immediate_ is true
@@ -102,6 +104,7 @@ module Gamz
       else
         self.ticks ticks, &cycle
       end
+      self
     end
 
     # Start the demultiplexer's main loop. If _timeout_ is given without a

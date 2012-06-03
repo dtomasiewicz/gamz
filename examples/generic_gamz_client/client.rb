@@ -20,9 +20,12 @@ Class.new do
 
   def handle_input(input)
     action, data = input.chomp.split ' ', 2
-    data ||= "[]"
-    @client.act action, *JSON.parse(data) do |res, *details|
-      puts "RES (#{action}) #{res} => #{JSON.dump details}"
+    begin
+      @client.act action, *JSON.parse(data || "[]") do |res, *details|
+        puts "RES (#{action}) #{res} => #{JSON.dump details}"
+      end
+    rescue JSON::ParserError => e
+      puts "!!! Could not parse data: #{e.message}"
     end
   end
 

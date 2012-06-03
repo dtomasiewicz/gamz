@@ -1,7 +1,8 @@
 #!/usr/bin/env ruby
 
-require 'gamz/lobby'
-require 'gamz/support'
+require 'gamz/server'
+require_relative 'lobby'
+require_relative 'standard_deck'
 
 class Player
 
@@ -18,7 +19,7 @@ class Player
 
 end
 
-class CrazyEights < Gamz::Lobby::Game
+class CrazyEights < Game
 
   MIN_PLAYERS = 2
   MAX_PLAYERS = 4
@@ -26,7 +27,7 @@ class CrazyEights < Gamz::Lobby::Game
 
   def setup
     @turn = 0
-    @deck = Gamz::Support::StandardDeck.new
+    @deck = StandardDeck.new
     @discard = []
 
     @deck.shuffle!
@@ -184,4 +185,5 @@ end
 
 server = Gamz::Server.new
 server.listen((ARGV[0] || 10000).to_i)
-Gamz::Lobby.new(server, CrazyEights, Player).start
+server.listen_ws((ARGV[0] || 10001).to_i)
+Lobby.new(server, CrazyEights, Player).start

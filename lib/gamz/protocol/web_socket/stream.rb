@@ -30,7 +30,7 @@ module Gamz
         def open
           super
 
-          @ws = LibWebSockets::ServerConnection.wrap(socket) do |message|
+          @ws = LibWebSockets::ServerConnection.new(socket) do |message|
             message! JSON.parse(message) rescue close
           end
           @ws.on_open { open! }

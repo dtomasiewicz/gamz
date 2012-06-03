@@ -119,14 +119,6 @@ module Gamz
 
       private
 
-      def socket_accept(stream, address)
-        stream.open do
-          add_client Client.new(stream, address)
-        end
-
-        @demux.add stream
-      end
-
       def stream_closed(stream)
         @demux.remove stream
 
