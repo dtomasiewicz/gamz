@@ -8,18 +8,13 @@ module Gamz
 
         # abstract :send_message, :do_read
 
+        attr_reader :socket
+        alias_method :to_io, :socket
+
         def initialize(socket)
           super()
           @socket = socket
         end
-
-        def to_io
-          @socket
-        end
-
-        protected
-
-        attr_reader :socket
 
       end
 

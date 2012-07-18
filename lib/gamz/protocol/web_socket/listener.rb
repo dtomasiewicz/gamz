@@ -7,7 +7,7 @@ module Gamz
         protected
 
         def construct_client(socket, address)
-          Protocol::Socket::Client.new Stream.new(socket), address
+          Client.new Stream.new(socket), address
         end
 
       end

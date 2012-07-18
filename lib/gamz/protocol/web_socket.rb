@@ -9,5 +9,6 @@ module Gamz
   end
 end
 
+require 'gamz/protocol/web_socket/client'
 require 'gamz/protocol/web_socket/listener'
 require 'gamz/protocol/web_socket/stream'

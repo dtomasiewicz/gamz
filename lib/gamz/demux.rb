@@ -81,29 +81,36 @@ module Gamz
     # true (default), the next execution will be scheduled *before* the current 
     # one, resulting in uniform delays between block calls regardless of the
     # block's execution time.
-    def each_seconds(period, immediate = true, preemptive = true, &block)
-      if preemptive
+    def each_seconds(period, options = {}, &block)
+      options[:immediate] = true unless options.has_key? :immediate
+      options[:preemptive] = true unless options.has_key? :preemptive
+
+      if options[:preemptive]
         cycle = proc { self.seconds period, &cycle; block.call }
       else
         cycle = proc { block.call; self.seconds period, &cycle }
       end
-      if immediate
+      if options[:immediate]
         cycle.call
       else
         self.seconds period, &cycle
       end
+      
       self
     end
 
     # Calls the given _block_ every _period_ ticks. If _immediate_ is true
     # (default), the firs texecution will occur immediately.
-    def each_ticks(delta, immediate = true, &block)
+    def each_ticks(delta, options = {}, &block)
+      options[:immediate] = true unless options.has_key? :immediate
+
       cycle = proc { block.call; self.ticks ticks, &cycle }
-      if immediate
+      if options[:immediate]
         cycle.call
       else
         self.ticks ticks, &cycle
       end
+
       self
     end
 
