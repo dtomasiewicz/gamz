@@ -101,7 +101,7 @@ module Gamz
 
     # Calls the given _block_ every _period_ ticks. If _immediate_ is true
     # (default), the firs texecution will occur immediately.
-    def each_ticks(delta, options = {}, &block)
+    def each_ticks(ticks, options = {}, &block)
       options[:immediate] = true unless options.has_key? :immediate
 
       cycle = proc { block.call; self.ticks ticks, &cycle }
