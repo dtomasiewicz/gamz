@@ -1,4 +1,3 @@
-require 'lib_web_sockets'
 require 'gamz/protocol/socket'
 
 module Gamz
