@@ -51,6 +51,7 @@ module Gamz
                   open!
                 else
                   socket.close
+                  closed!
                 end
               end
             else
@@ -60,7 +61,7 @@ module Gamz
             puts e.inspect
             puts e.backtrace[0]
             socket.close
-            closed! if open?
+            closed!
           end
         end
 
@@ -68,7 +69,11 @@ module Gamz
           if open?
             @pong_callback = block
             frame = ::WebSocket::Frame::Outgoing::Server.new version: @handshake.version, data: data, type: :ping
-            socket.sendmsg_nonblock frame.to_s
+            if frame.support_type?
+              socket.sendmsg_nonblock frame.to_s
+            else
+              raise "protocol version does not support ping"
+            end
           else
             raise "not open"
           end
@@ -86,10 +91,8 @@ module Gamz
         def close
           if open?
             super
-            # TODO only certain protocol versions actually use a close frame... this should
-            # check the version first. not sure of the best way to do this.
             frame = ::WebSocket::Frame::Outgoing::Server.new version: @handshake.version, type: :close
-            socket.sendmsg_nonblock frame.to_s
+            socket.sendmsg_nonblock frame.to_s if frame.support_type?
             socket.close
             closed!
           else
