@@ -16,25 +16,31 @@ module Gamz
         end
 
         def do_read
-          begin
-            len_packed = socket.recv_nonblock 2
-            raise if len_packed.bytesize == 0
-            json = socket.recv_nonblock(len_packed.unpack('n')[0]).force_encoding JSON_ENCODING
-            message! JSON.parse(json)
-          rescue
-            close
-          end
+          len_packed = socket.recv_nonblock 2
+          return close if len_packed.bytesize == 0
+
+          json = socket.recv_nonblock(len_packed.unpack('n')[0]).force_encoding JSON_ENCODING
+          message! JSON.parse(json)
         end
 
         def open
-          raise "Cannot re-open a closed socket!" if @closed
+          raise IOError, "Cannot re-open a closed socket!" if @closed
           super
           open!
         end
 
         def close
+          raise IOError, "already closed" if @closed
+
           super
-          socket.close
+
+          begin
+            socket.close
+          rescue IOError => e
+            puts e.inspect
+            puts e.backtrace[0]
+          end
+          
           @closed = true
           closed!
         end

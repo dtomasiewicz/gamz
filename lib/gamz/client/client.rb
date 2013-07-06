@@ -57,8 +57,8 @@ module Gamz
       end
 
       def act(action, *data, &block)
-        @response_handlers << block
         @stream.send_message [action, *data]
+        @response_handlers << block
 
         self
       end

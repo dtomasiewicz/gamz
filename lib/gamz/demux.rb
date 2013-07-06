@@ -153,9 +153,9 @@ module Gamz
 
     def step(timeout = nil)
       if sel = select(@streams[:read].to_a, @streams[:write].to_a, @streams[:error].to_a, timeout)
-        sel[0].each &:do_read
-        sel[1].each &:do_write
-        sel[2].each &:do_error
+        sel[0].each{|s| s.do_read rescue s.close}
+        sel[1].each{|s| s.do_write rescue s.close}
+        sel[2].each{|s| s.do_error rescue s.close}
       end
       self
     end
