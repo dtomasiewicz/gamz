@@ -31,7 +31,7 @@ module Gamz
       self
     end
 
-    def remove(io, events = [:read, :write, :error])
+    def remove(io, events = @streams.keys)
       events = [events] unless events.respond_to? :each
       events.each do |event|
         @streams[event].delete io
@@ -153,9 +153,9 @@ module Gamz
 
     def step(timeout = nil)
       if sel = select(@streams[:read].to_a, @streams[:write].to_a, @streams[:error].to_a, timeout)
-        sel[0].each{|s| s.do_read rescue s.close}
-        sel[1].each{|s| s.do_write rescue s.close}
-        sel[2].each{|s| s.do_error rescue s.close}
+        sel[0].each{|s| s.do_read rescue nil}
+        sel[1].each{|s| s.do_write rescue nil}
+        sel[2].each{|s| s.do_error rescue nil}
       end
       self
     end
