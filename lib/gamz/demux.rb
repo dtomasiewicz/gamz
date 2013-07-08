@@ -4,7 +4,7 @@ module Gamz
 
   class Demux
 
-    DEFAULT_TICK_RATE = 60
+    DEFAULT_TICK_RATE = 15
 
     attr_accessor :tick_rate
 
@@ -126,7 +126,7 @@ module Gamz
     # If no _timeout_ is given, the server will run until interrupted.
     def start(timeout = nil, &block)
       raise "demux already running" if @running
-      step_timeout = 1.0/@tick_rate
+      step_timeout = @tick_rate/1000
 
       if timeout
         cycle = proc do

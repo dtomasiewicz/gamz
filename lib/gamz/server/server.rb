@@ -117,6 +117,12 @@ module Gamz
         self
       end
 
+      def cleanup
+        @clients.each_value do |client|
+          remove_client client
+        end
+      end
+
       private
 
       def stream_closed(stream)
